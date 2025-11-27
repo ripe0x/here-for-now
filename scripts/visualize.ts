@@ -1,0 +1,299 @@
+import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
+
+/**
+ * Visualization script for HereForNow artwork
+ *
+ * This script:
+ * 1. Deploys contracts locally
+ * 2. Simulates various deposit patterns
+ * 3. Generates SVGs for different states
+ * 4. Writes them to ./outputs/state-*.svg
+ * 5. Creates an HTML preview page
+ *
+ * Run with: npx hardhat run scripts/visualize.ts --network localhost
+ * (Make sure to run `npx hardhat node` first)
+ */
+
+const OUTPUT_DIR = path.join(__dirname, "..", "outputs");
+
+interface State {
+  name: string;
+  depositors: number;
+  totalBalance: string;
+  svg: string;
+}
+
+async function main() {
+  console.log("Generating HereForNow visualizations...\n");
+
+  // Ensure output directory exists
+  if (!fs.existsSync(OUTPUT_DIR)) {
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  }
+
+  const signers = await ethers.getSigners();
+  const deployer = signers[0];
+
+  // Deploy contracts
+  console.log("Deploying contracts...");
+
+  const MockCore = await ethers.getContractFactory("MockERC721CreatorCore");
+  const mockCore = await MockCore.deploy();
+
+  const Renderer = await ethers.getContractFactory("HereForNowRenderer");
+  const renderer = await Renderer.deploy();
+
+  const Extension = await ethers.getContractFactory("HereForNowExtension");
+  const extension = await Extension.deploy();
+
+  await mockCore.registerExtension(await extension.getAddress(), "");
+  await extension.setRenderer(await renderer.getAddress());
+  await extension.initialize(await mockCore.getAddress());
+
+  console.log("Contracts deployed.\n");
+
+  const states: State[] = [];
+
+  // Helper to generate a state
+  async function captureState(name: string, filename: string) {
+    const svg = await extension.svg();
+    const depositors = await extension.activeDepositors();
+    const totalBalance = await extension.totalBalance();
+    states.push({
+      name,
+      depositors: Number(depositors),
+      totalBalance: ethers.formatEther(totalBalance),
+      svg,
+    });
+    fs.writeFileSync(path.join(OUTPUT_DIR, filename), svg);
+    console.log(`  Written to ${filename}`);
+  }
+
+  // Helper to add N new depositors using generated wallets
+  async function addDepositors(count: number, depositAmount: string) {
+    const amount = ethers.parseEther(depositAmount);
+    for (let i = 0; i < count; i++) {
+      // Generate a random wallet
+      const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
+
+      // Fund the wallet from deployer
+      await deployer.sendTransaction({
+        to: wallet.address,
+        value: amount + ethers.parseEther("0.01"), // Extra for gas
+      });
+
+      // Deposit from wallet
+      await extension.connect(wallet).deposit({ value: amount });
+    }
+  }
+
+  // State 0: No depositors
+  console.log("Generating state 0: No depositors...");
+  await captureState("0 depositors", "state-0.svg");
+
+  // State 1: 1 depositor
+  console.log("Generating state 1: 1 depositor...");
+  await extension.connect(signers[1]).deposit({ value: ethers.parseEther("1") });
+  await captureState("1 depositor", "state-1.svg");
+
+  // State 3: 3 depositors
+  console.log("Generating state 3: 3 depositors...");
+  await extension.connect(signers[2]).deposit({ value: ethers.parseEther("0.5") });
+  await extension.connect(signers[3]).deposit({ value: ethers.parseEther("2") });
+  await captureState("3 depositors", "state-3.svg");
+
+  // State 5: 5 depositors
+  console.log("Generating state 5: 5 depositors...");
+  await extension.connect(signers[4]).deposit({ value: ethers.parseEther("0.1") });
+  await extension.connect(signers[5]).deposit({ value: ethers.parseEther("0.25") });
+  await captureState("5 depositors", "state-5.svg");
+
+  // State 10: 10 depositors
+  console.log("Generating state 10: 10 depositors...");
+  for (let i = 6; i <= 10; i++) {
+    await extension.connect(signers[i]).deposit({ value: ethers.parseEther("0.05") });
+  }
+  await captureState("10 depositors", "state-10.svg");
+
+  // State 20: 20 depositors
+  console.log("Generating state 20: 20 depositors...");
+  for (let i = 11; i <= 19; i++) {
+    await extension.connect(signers[i]).deposit({ value: ethers.parseEther("0.01") });
+  }
+  await extension.connect(deployer).deposit({ value: ethers.parseEther("0.01") });
+  await captureState("20 depositors", "state-20.svg");
+
+  // State 40: 40 depositors
+  console.log("Generating state 40: 40 depositors...");
+  await addDepositors(20, "0.01");
+  await captureState("40 depositors", "state-40.svg");
+
+  // State 69: 69 depositors
+  console.log("Generating state 69: 69 depositors...");
+  await addDepositors(29, "0.01");
+  await captureState("69 depositors", "state-69.svg");
+
+  // State 100: 100 depositors
+  console.log("Generating state 100: 100 depositors...");
+  await addDepositors(31, "0.01");
+  await captureState("100 depositors", "state-100.svg");
+
+  // State 150: 150 depositors
+  console.log("Generating state 150: 150 depositors...");
+  await addDepositors(50, "0.01");
+  await captureState("150 depositors", "state-150.svg");
+
+  // State 200: 200 depositors
+  console.log("Generating state 200: 200 depositors...");
+  await addDepositors(50, "0.01");
+  await captureState("200 depositors", "state-200.svg");
+
+  // State 400: 400 depositors
+  console.log("Generating state 400: 400 depositors...");
+  await addDepositors(200, "0.01");
+  await captureState("400 depositors", "state-400.svg");
+
+  // State 500: 500 depositors
+  console.log("Generating state 500: 500 depositors...");
+  await addDepositors(100, "0.01");
+  await captureState("500 depositors", "state-500.svg");
+
+  // State 598: 598 depositors (solid block - lines just touching)
+  console.log("Generating state 598: 598 depositors (solid block)...");
+  await addDepositors(98, "0.01");
+  await captureState("598 depositors (solid)", "state-598.svg");
+
+  // State 1000: 1000 depositors
+  console.log("Generating state 1000: 1000 depositors...");
+  await addDepositors(402, "0.01");
+  await captureState("1000 depositors", "state-1000.svg");
+
+  // Generate HTML preview
+  console.log("\nGenerating HTML preview...");
+  const html = generateHTMLPreview(states);
+  fs.writeFileSync(path.join(OUTPUT_DIR, "preview.html"), html);
+  console.log("  Written to preview.html");
+
+  // Also get and save the full token URI for one state
+  console.log("\nSaving sample token URI...");
+  const tokenURI = await mockCore.tokenURI(2);
+  fs.writeFileSync(path.join(OUTPUT_DIR, "sample-token-uri.txt"), tokenURI);
+  console.log("  Written to sample-token-uri.txt");
+
+  console.log("\n========================================");
+  console.log("Visualization complete!");
+  console.log("========================================");
+  console.log(`\nOpen ${path.join(OUTPUT_DIR, "preview.html")} in a browser to view all states.`);
+
+  return states;
+}
+
+function generateHTMLPreview(states: State[]): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Here, For Now - State Preview</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background-color: #1a1a1a;
+      color: #ffffff;
+      margin: 0;
+      padding: 40px;
+    }
+    h1 {
+      text-align: center;
+      font-weight: 300;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #888;
+      font-size: 1rem;
+      margin-bottom: 40px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+    .state {
+      background: #0a0a0a;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+    .state img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .state-info {
+      padding: 20px;
+      border-top: 1px solid #333;
+    }
+    .state-name {
+      font-size: 1.1rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .state-details {
+      color: #888;
+      font-size: 0.9rem;
+    }
+    .description {
+      max-width: 800px;
+      margin: 0 auto 50px auto;
+      text-align: center;
+      color: #aaa;
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Here, For Now</h1>
+  <p class="subtitle">State Visualization</p>
+  <p class="description">
+    This work treats the chain as a place where presence can be held, not just seen.
+    Living directly on programmable money, it uses ETH itself as the material for showing up:
+    a single contract where people leave part of their balance alongside others, with no yield and no reward.
+  </p>
+  <div class="grid">
+    ${states
+      .map(
+        (state) => `
+      <div class="state">
+        <img src="data:image/svg+xml;base64,${Buffer.from(state.svg).toString('base64')}" alt="${state.name}" />
+        <div class="state-info">
+          <div class="state-name">${state.name}</div>
+          <div class="state-details">
+            ${state.depositors} active depositors<br>
+            ${state.totalBalance} ETH held
+          </div>
+        </div>
+      </div>
+    `
+      )
+      .join("")}
+  </div>
+</body>
+</html>`;
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

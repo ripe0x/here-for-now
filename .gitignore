@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+artifacts/
+cache/
+typechain-types/
+dist/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+coverage.json
+
+# Generated outputs (keep in repo for preview, but can regenerate)
+# outputs/

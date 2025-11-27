@@ -1,0 +1,37 @@
+{
+  "name": "here-for-now",
+  "version": "1.0.0",
+  "description": "HereForNow - Onchain artwork as a Manifold extension",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost",
+    "deploy:fork": "hardhat run scripts/deploy-fork.ts --network hardhat",
+    "deploy:mainnet": "hardhat run scripts/deploy-mainnet.ts --network mainnet",
+    "visualize": "hardhat run scripts/visualize.ts --network localhost",
+    "node": "hardhat node",
+    "node:fork": "hardhat node --fork $MAINNET_RPC_URL"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "hardhat": "^2.19.0",
+    "ethers": "^6.9.0",
+    "chai": "^4.3.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.10.0",
+    "@types/chai": "^4.3.0",
+    "typechain": "^8.3.0",
+    "solidity-coverage": "^0.8.0"
+  },
+  "dependencies": {
+    "@manifoldxyz/creator-core-solidity": "^3.0.0",
+    "@manifoldxyz/libraries-solidity": "^1.0.4",
+    "@openzeppelin/contracts": "^4.9.0",
+    "dotenv": "^16.3.0"
+  }
+}
