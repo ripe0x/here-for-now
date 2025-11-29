@@ -25,3 +25,5 @@ coverage.json
 
 # Generated outputs (keep in repo for preview, but can regenerate)
 # outputs/
+/outputs
+/outputs

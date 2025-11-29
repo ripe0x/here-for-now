@@ -25,7 +25,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     // Line positioning (in viewBox coordinates)
     uint256 private constant LINE_X = 300;       // x position
     uint256 private constant LINE_WIDTH = 400;   // width (300 to 700)
-    uint256 private constant LINE_HEIGHT = 1;    // height
+    uint256 private constant LINE_HEIGHT = 2;    // height (2 viewBox units = 8px output)
     uint256 private constant LINE_Y_TOP = 200;   // top line y
     uint256 private constant LINE_Y_BOTTOM = 799; // bottom line y
 
@@ -113,7 +113,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         // Write SVG header with viewBox scaling
         // Output: 4000x4000, ViewBox: 1000x1000 (4x scale)
         ptr = _writeString(ptr, '<svg width="4000" height="4000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">');
-        ptr = _writeString(ptr, '<defs><rect id="l" width="400" height="1" fill="white"/></defs>');
+        ptr = _writeString(ptr, '<defs><rect id="l" width="400" height="2" fill="white"/></defs>');
         ptr = _writeString(ptr, '<rect width="1000" height="1000" fill="#0A0A0A"/>');
 
         // Calculate and write lines
@@ -126,8 +126,12 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
             uint256 intervals = totalLines - 1;
 
             for (uint256 i = 0; i < totalLines; i++) {
-                // Calculate y with rounding: y = 200 + round(599 * i / intervals)
-                uint256 y = LINE_Y_TOP + ((verticalSpan * i) + (intervals >> 1)) / intervals;
+                // Quadratic ease-out: sparse at top, dense at bottom
+                // t = i * 1000 / intervals (normalized 0-1000)
+                // y = top + span * (1 - (1-t)²) = top + span - span * (1000-t)² / 1000000
+                uint256 t = (i * 1000) / intervals;
+                uint256 invT = 1000 - t;
+                uint256 y = LINE_Y_TOP + verticalSpan - (verticalSpan * invT * invT) / 1000000;
 
                 ptr = _writeString(ptr, '<use href="#l" x="300" y="');
                 ptr = _writeUint(ptr, y);

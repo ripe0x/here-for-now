@@ -125,34 +125,29 @@ async function main() {
   await extension.connect(deployer).deposit({ value: ethers.parseEther("0.01") });
   await captureState("20 depositors", "state-20.svg");
 
-  // State 40: 40 depositors
-  console.log("Generating state 40: 40 depositors...");
-  await addDepositors(20, "0.01");
-  await captureState("40 depositors", "state-40.svg");
-
-  // State 69: 69 depositors
-  console.log("Generating state 69: 69 depositors...");
-  await addDepositors(29, "0.01");
-  await captureState("69 depositors", "state-69.svg");
+  // State 50: 50 depositors
+  console.log("Generating state 50: 50 depositors...");
+  await addDepositors(30, "0.01");
+  await captureState("50 depositors", "state-50.svg");
 
   // State 100: 100 depositors
   console.log("Generating state 100: 100 depositors...");
-  await addDepositors(31, "0.01");
-  await captureState("100 depositors", "state-100.svg");
-
-  // State 150: 150 depositors
-  console.log("Generating state 150: 150 depositors...");
   await addDepositors(50, "0.01");
-  await captureState("150 depositors", "state-150.svg");
+  await captureState("100 depositors", "state-100.svg");
 
   // State 200: 200 depositors
   console.log("Generating state 200: 200 depositors...");
-  await addDepositors(50, "0.01");
+  await addDepositors(100, "0.01");
   await captureState("200 depositors", "state-200.svg");
+
+  // State 300: 300 depositors
+  console.log("Generating state 300: 300 depositors...");
+  await addDepositors(100, "0.01");
+  await captureState("300 depositors", "state-300.svg");
 
   // State 400: 400 depositors
   console.log("Generating state 400: 400 depositors...");
-  await addDepositors(200, "0.01");
+  await addDepositors(100, "0.01");
   await captureState("400 depositors", "state-400.svg");
 
   // State 500: 500 depositors
@@ -160,15 +155,10 @@ async function main() {
   await addDepositors(100, "0.01");
   await captureState("500 depositors", "state-500.svg");
 
-  // State 598: 598 depositors (solid block - lines just touching)
+  // State 598: 598 depositors (solid block with quadratic + 2px lines)
   console.log("Generating state 598: 598 depositors (solid block)...");
   await addDepositors(98, "0.01");
   await captureState("598 depositors (solid)", "state-598.svg");
-
-  // State 1000: 1000 depositors
-  console.log("Generating state 1000: 1000 depositors...");
-  await addDepositors(402, "0.01");
-  await captureState("1000 depositors", "state-1000.svg");
 
   // Generate HTML preview
   console.log("\nGenerating HTML preview...");
