@@ -11,6 +11,11 @@ dist/
 .env
 .env.local
 
+# Generated test data (contains private keys)
+test-accounts.json
+deployment-*.json
+deploy-progress-*.json
+
 # IDE
 .vscode/
 .idea/
