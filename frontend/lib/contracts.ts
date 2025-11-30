@@ -1,11 +1,14 @@
 import { Address } from "viem";
 
 // Contract addresses per network
-export const CONTRACTS: Record<number, { manifoldCore: Address; extension: Address; renderer: Address }> = {
+export const CONTRACTS: Record<
+  number,
+  { manifoldCore: Address; extension: Address; renderer: Address }
+> = {
   // Sepolia
   11155111: {
     manifoldCore: "0xA11D7EbB2404bb8CE247eaE15eF02312cC294cEc",
-    extension: "0xfbFBEfA9403c226E8aa2bFE9555FaE2b3E505F10",
+    extension: "0x1940D20527A3407ef948828f23b7Cc6E5D927B82",
     renderer: "0x7766662a22EC83cd47856493A9493E9C5Fa2660F",
   },
   // Mainnet (update after deployment)

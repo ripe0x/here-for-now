@@ -91,7 +91,16 @@ export default function Home() {
           <div>
             <h1 className="text-xl md:text-2xl font-medium">{metadata?.name || "Loading..."}</h1>
             <p className="text-white/50 text-sm mt-1">
-              {chain?.name || "Sepolia"}
+              by{" "}
+              <a
+                href="https://ripe.wtf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                ripe
+              </a>
+              {" "}on {chain?.name || "Sepolia"}
             </p>
           </div>
           <ConnectButton.Custom>
