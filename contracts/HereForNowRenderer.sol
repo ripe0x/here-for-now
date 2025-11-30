@@ -26,7 +26,8 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     // Line positioning (in viewBox coordinates)
     uint256 private constant LINE_X = 300; // x position
     uint256 private constant LINE_WIDTH = 400; // width (300 to 700)
-    uint256 private constant LINE_HEIGHT = 2; // height (2 viewBox units = 8px output)
+    uint256 private constant LINE_HEIGHT = 1; // height (1 viewBox unit = 4px output)
+    uint256 private constant SOLID_THRESHOLD = 599; // Lines needed for solid coverage (599 / 1)
     uint256 private constant LINE_Y_TOP = 200; // top line y
     uint256 private constant LINE_Y_BOTTOM = 799; // bottom line y
 
@@ -83,8 +84,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
 
     /// @inheritdoc IHereForNowRenderer
     function tokenURI(
-        uint256 activeParticipants,
-        uint256 totalBalance
+        uint256 activeParticipants
     ) external view override returns (string memory) {
         string memory svg = generateSVG(activeParticipants);
         string memory base64SVG = Base64.encode(bytes(svg));
@@ -99,9 +99,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
                 base64SVG,
                 '","attributes":[{"trait_type":"Present","value":',
                 activeParticipants.toString(),
-                '},{"trait_type":"Total ETH Held","value":"',
-                _formatEther(totalBalance),
-                '"}]}'
+                '}]}'
             )
         );
 
@@ -140,7 +138,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         );
         ptr = _writeString(
             ptr,
-            '<defs><rect id="l" width="400" height="2" fill="white"/></defs>'
+            '<defs><rect id="l" width="400" height="1" fill="white"/></defs>'
         );
         ptr = _writeString(
             ptr,
@@ -150,7 +148,10 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         // Calculate and write lines
         uint256 verticalSpan = LINE_Y_BOTTOM - LINE_Y_TOP; // 599
 
-        if (totalLines == 2) {
+        if (totalLines >= SOLID_THRESHOLD) {
+            // Draw a single white rectangle instead of individual lines
+            ptr = _writeString(ptr, '<rect x="300" y="200" width="400" height="600" fill="white"/>');
+        } else if (totalLines == 2) {
             ptr = _writeString(ptr, '<use href="#l" x="300" y="200"/>');
             ptr = _writeString(ptr, '<use href="#l" x="300" y="799"/>');
         } else {
@@ -252,33 +253,4 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         return ptr;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                           INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Formats wei to ETH string with 4 decimal places
-    function _formatEther(
-        uint256 weiAmount
-    ) internal pure returns (string memory) {
-        uint256 whole = weiAmount / 1e18;
-        uint256 fraction = (weiAmount % 1e18) / 1e14;
-
-        string memory fractionStr;
-        if (fraction == 0) {
-            fractionStr = "0000";
-        } else if (fraction < 10) {
-            fractionStr = string(abi.encodePacked("000", fraction.toString()));
-        } else if (fraction < 100) {
-            fractionStr = string(abi.encodePacked("00", fraction.toString()));
-        } else if (fraction < 1000) {
-            fractionStr = string(abi.encodePacked("0", fraction.toString()));
-        } else {
-            fractionStr = fraction.toString();
-        }
-
-        return
-            string(
-                abi.encodePacked(whole.toString(), ".", fractionStr, " ETH")
-            );
-    }
 }

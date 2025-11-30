@@ -136,8 +136,7 @@ contract HereForNowExtension is
 
         return
             IHereForNowRenderer(renderer).tokenURI(
-                activeParticipants,
-                totalBalance
+                activeParticipants
             );
     }
 
