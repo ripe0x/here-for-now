@@ -3,19 +3,19 @@ import { ethers } from "hardhat";
 async function main() {
   const userAddress = "0xCB43078C32423F5348Cab5885911C3B5faE217F9";
   const extensionAddress = "0xfbFBEfA9403c226E8aa2bFE9555FaE2b3E505F10";
-  const depositAmount = ethers.parseEther("0.01");
+  const enterAmount = ethers.parseEther("0.01");
 
-  console.log("Testing deposit simulation...");
+  console.log("Testing enter simulation...");
   console.log("From:", userAddress);
   console.log("To:", extensionAddress);
-  console.log("Value:", ethers.formatEther(depositAmount), "ETH");
+  console.log("Value:", ethers.formatEther(enterAmount), "ETH");
 
   try {
     const gasEstimate = await ethers.provider.estimateGas({
       to: extensionAddress,
       from: userAddress,
-      data: "0xd0e30db0", // deposit() selector
-      value: depositAmount,
+      data: "0xe97dcb62", // enter() selector
+      value: enterAmount,
     });
     console.log("\n✓ Simulation SUCCESS");
     console.log("Gas estimate:", gasEstimate.toString());

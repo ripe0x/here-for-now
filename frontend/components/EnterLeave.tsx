@@ -5,19 +5,19 @@ import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagm
 import { parseEther, Address } from "viem";
 import { EXTENSION_ABI } from "@/lib/contracts";
 
-interface DepositWithdrawProps {
+interface EnterLeaveProps {
   extensionAddress: Address;
-  hasDeposit: boolean;
+  hasEntered: boolean;
   isConnected: boolean;
   onSuccess?: () => void;
 }
 
-export function DepositWithdraw({
+export function EnterLeave({
   extensionAddress,
-  hasDeposit,
+  hasEntered,
   isConnected,
   onSuccess,
-}: DepositWithdrawProps) {
+}: EnterLeaveProps) {
   const [amount, setAmount] = useState("0.01");
   const { chain } = useAccount();
 
@@ -37,23 +37,23 @@ export function DepositWithdraw({
     }
   }, [isSuccess, onSuccess, reset]);
 
-  const handleDeposit = () => {
+  const handleEnter = () => {
     if (!chain) return;
     writeContract({
       address: extensionAddress,
       abi: EXTENSION_ABI,
-      functionName: "deposit",
+      functionName: "enter",
       value: parseEther(amount),
       chainId: chain.id,
     });
   };
 
-  const handleWithdraw = () => {
+  const handleLeave = () => {
     if (!chain) return;
     writeContract({
       address: extensionAddress,
       abi: EXTENSION_ABI,
-      functionName: "withdraw",
+      functionName: "leave",
       chainId: chain.id,
     });
   };
@@ -61,7 +61,7 @@ export function DepositWithdraw({
   if (!isConnected) {
     return (
       <p className="text-white/50 text-sm text-center">
-        Connect wallet to deposit or withdraw
+        Connect wallet to enter or leave
       </p>
     );
   }
@@ -70,8 +70,8 @@ export function DepositWithdraw({
 
   return (
     <div className="space-y-4">
-      {/* Amount input (only for deposit) */}
-      {!hasDeposit && (
+      {/* Amount input (only for enter) */}
+      {!hasEntered && (
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -88,13 +88,13 @@ export function DepositWithdraw({
 
       {/* Action button */}
       <button
-        onClick={hasDeposit ? handleWithdraw : handleDeposit}
+        onClick={hasEntered ? handleLeave : handleEnter}
         disabled={isLoading}
         className={`
           w-full py-4 text-sm font-medium transition-colors
           ${isLoading
             ? "bg-white/10 text-white/50 cursor-wait"
-            : hasDeposit
+            : hasEntered
               ? "bg-transparent border border-white hover:bg-white hover:text-black"
               : "bg-white text-black hover:bg-white/90"
           }
@@ -104,9 +104,9 @@ export function DepositWithdraw({
           ? isConfirming
             ? "Confirming..."
             : "Pending..."
-          : hasDeposit
-            ? "Withdraw"
-            : "Deposit"
+          : hasEntered
+            ? "Leave"
+            : "Enter"
         }
       </button>
 

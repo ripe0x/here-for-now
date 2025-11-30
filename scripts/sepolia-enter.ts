@@ -4,16 +4,16 @@ import * as path from "path";
 import { waitForTx, shortHash } from "./lib/tx-utils";
 
 /**
- * Deposit ETH from test accounts to the extension
+ * Enter the artwork by sending ETH from test accounts to the extension
  *
  * Usage:
- *   npx hardhat run scripts/sepolia-deposit.ts --network sepolia
- *   COUNT=10 npx hardhat run scripts/sepolia-deposit.ts --network sepolia
- *   COUNT=10 AMOUNT=0.002 npx hardhat run scripts/sepolia-deposit.ts --network sepolia
+ *   npx hardhat run scripts/sepolia-enter.ts --network sepolia
+ *   COUNT=10 npx hardhat run scripts/sepolia-enter.ts --network sepolia
+ *   COUNT=10 AMOUNT=0.002 npx hardhat run scripts/sepolia-enter.ts --network sepolia
  *
  * Environment variables:
- *   COUNT    Number of accounts to deposit from (default: 5)
- *   AMOUNT   ETH amount per deposit (default: 0.001)
+ *   COUNT    Number of accounts to enter from (default: 5)
+ *   AMOUNT   ETH amount per entry (default: 0.001)
  */
 
 const ACCOUNTS_FILE = path.join(__dirname, "..", "test-accounts.json");
@@ -21,9 +21,9 @@ const DEPLOYMENT_FILE = path.join(__dirname, "..", `deployment-${network.name}.j
 
 // Extension ABI (minimal)
 const EXTENSION_ABI = [
-  "function deposit() external payable",
+  "function enter() external payable",
   "function balanceOf(address) view returns (uint256)",
-  "function getActiveDepositors() view returns (uint256)",
+  "function getActiveParticipants() view returns (uint256)",
   "function getTotalBalance() view returns (uint256)",
 ];
 
@@ -50,12 +50,12 @@ function parseArgs(): { count: number; amount: string } {
 
 async function main() {
   const { count, amount } = parseArgs();
-  const depositAmount = ethers.parseEther(amount);
+  const enterAmount = ethers.parseEther(amount);
 
-  console.log("Sepolia Deposit Script\n");
+  console.log("Sepolia Enter Script\n");
   console.log("=".repeat(50));
-  console.log(`Depositing from ${count} accounts`);
-  console.log(`Amount per deposit: ${amount} ETH`);
+  console.log(`Entering from ${count} accounts`);
+  console.log(`Amount per entry: ${amount} ETH`);
 
   // Load test accounts
   if (!fs.existsSync(ACCOUNTS_FILE)) {
@@ -84,16 +84,16 @@ async function main() {
 
   // Get initial state
   const extension = new ethers.Contract(deployment.extension, EXTENSION_ABI, ethers.provider);
-  const initialDepositors = await extension.getActiveDepositors();
+  const initialParticipants = await extension.getActiveParticipants();
   const initialBalance = await extension.getTotalBalance();
 
   console.log(`\nInitial state:`);
-  console.log(`  Active depositors: ${initialDepositors}`);
+  console.log(`  Active participants: ${initialParticipants}`);
   console.log(`  Total balance: ${ethers.formatEther(initialBalance)} ETH`);
 
-  // Deposit from accounts
+  // Enter from accounts
   console.log("\n" + "=".repeat(50));
-  console.log("Depositing...\n");
+  console.log("Entering...\n");
 
   let successful = 0;
   let skipped = 0;
@@ -106,27 +106,27 @@ async function main() {
 
     console.log(`[${account.index}] ${account.address}`);
 
-    // Check if already deposited
+    // Check if already entered
     const existingBalance = await extension.balanceOf(account.address);
     if (existingBalance > 0) {
-      console.log(`    Skipped - already has ${ethers.formatEther(existingBalance)} ETH deposited`);
+      console.log(`    Skipped - already has ${ethers.formatEther(existingBalance)} ETH entered`);
       skipped++;
       continue;
     }
 
     // Check wallet balance
     const walletBalance = await ethers.provider.getBalance(account.address);
-    if (walletBalance < depositAmount) {
+    if (walletBalance < enterAmount) {
       console.log(`    Failed - insufficient balance (${ethers.formatEther(walletBalance)} ETH)`);
       failed++;
       continue;
     }
 
     try {
-      const tx = await extensionWithSigner.deposit({ value: depositAmount });
+      const tx = await extensionWithSigner.enter({ value: enterAmount });
       console.log(`    Sending... (${shortHash(tx.hash)})`);
       await waitForTx(tx, 60000);
-      console.log(`    ✓ Deposited ${amount} ETH`);
+      console.log(`    ✓ Entered with ${amount} ETH`);
       successful++;
     } catch (error: any) {
       console.log(`    ✗ Failed - ${error.message.slice(0, 50)}`);
@@ -135,11 +135,11 @@ async function main() {
   }
 
   // Get final state
-  const finalDepositors = await extension.getActiveDepositors();
+  const finalParticipants = await extension.getActiveParticipants();
   const finalBalance = await extension.getTotalBalance();
 
   console.log("\n" + "=".repeat(50));
-  console.log("Deposit Complete!");
+  console.log("Enter Complete!");
   console.log("=".repeat(50));
   console.log(`\nResults:`);
   console.log(`  Successful: ${successful}`);
@@ -147,12 +147,12 @@ async function main() {
   console.log(`  Failed:     ${failed}`);
 
   console.log(`\nFinal state:`);
-  console.log(`  Active depositors: ${finalDepositors} (was ${initialDepositors})`);
+  console.log(`  Active participants: ${finalParticipants} (was ${initialParticipants})`);
   console.log(`  Total balance: ${ethers.formatEther(finalBalance)} ETH (was ${ethers.formatEther(initialBalance)})`);
 
   console.log("\nNext steps:");
   console.log("  - Run: npm run sepolia:status");
-  console.log("  - Run: COUNT=N npm run sepolia:withdraw");
+  console.log("  - Run: COUNT=N npm run sepolia:leave");
 }
 
 main()

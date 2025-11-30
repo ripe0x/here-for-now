@@ -4,7 +4,7 @@ import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
 import { Artwork } from "@/components/Artwork";
-import { DepositWithdraw } from "@/components/DepositWithdraw";
+import { EnterLeave } from "@/components/EnterLeave";
 import {
   CONTRACTS,
   TOKEN_ID,
@@ -44,10 +44,10 @@ export default function Home() {
   });
 
   // Fetch stats
-  const { data: activeDepositors, refetch: refetchDepositors } = useReadContract({
+  const { data: activeParticipants, refetch: refetchParticipants } = useReadContract({
     address: contracts?.extension,
     abi: EXTENSION_ABI,
-    functionName: "getActiveDepositors",
+    functionName: "getActiveParticipants",
     chainId,
     query: { enabled: !!contracts },
   });
@@ -64,13 +64,13 @@ export default function Home() {
   const handleTransactionSuccess = () => {
     refetchTokenURI();
     refetchUserBalance();
-    refetchDepositors();
+    refetchParticipants();
     refetchTotalBalance();
   };
 
   // Parse metadata from tokenURI
   const metadata = tokenURI ? parseTokenURI(tokenURI) : null;
-  const hasDeposit = userBalance && userBalance > 0n;
+  const hasEntered = userBalance && userBalance > 0n;
 
   return (
     <main className="min-h-screen flex flex-col lg:flex-row">
@@ -118,8 +118,8 @@ export default function Home() {
         {/* Stats */}
         <div className="space-y-4 mb-6 md:mb-12">
           <div className="flex justify-between text-sm">
-            <span className="text-white/50">Present Depositors</span>
-            <span>{activeDepositors?.toString() || "0"}</span>
+            <span className="text-white/50">Present</span>
+            <span>{activeParticipants?.toString() || "0"}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-white/50">Total ETH Held</span>
@@ -127,7 +127,7 @@ export default function Home() {
           </div>
           {isConnected && (
             <div className="flex justify-between text-sm pt-4 border-t border-white/10">
-              <span className="text-white/50">Your Deposit</span>
+              <span className="text-white/50">Your Balance</span>
               <span>{userBalance ? formatEther(userBalance) : "0"} ETH</span>
             </div>
           )}
@@ -138,9 +138,9 @@ export default function Home() {
 
         {/* Actions */}
         {contracts && contracts.extension !== "0x0000000000000000000000000000000000000000" ? (
-          <DepositWithdraw
+          <EnterLeave
             extensionAddress={contracts.extension}
-            hasDeposit={!!hasDeposit}
+            hasEntered={!!hasEntered}
             isConnected={isConnected}
             onSuccess={handleTransactionSuccess}
           />
@@ -151,7 +151,7 @@ export default function Home() {
           </p>
         ) : (
           <p className="text-white/50 text-sm text-center">
-            Connect to Sepolia to deposit or withdraw
+            Connect to Sepolia to enter or leave
           </p>
         )}
       </div>

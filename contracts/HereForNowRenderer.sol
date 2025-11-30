@@ -7,6 +7,7 @@ import "./interfaces/IHereForNowRenderer.sol";
 import "./lib/Base64.sol";
 
 /// @title HereForNowRenderer
+/// @author ripe
 /// @notice Generates SVG artwork and metadata for the HereForNow piece
 /// @dev Uses assembly-optimized string building and viewBox scaling for gas efficiency
 contract HereForNowRenderer is IHereForNowRenderer, Ownable {
@@ -23,10 +24,10 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     uint256 private constant VIEWBOX_SIZE = 1000;
 
     // Line positioning (in viewBox coordinates)
-    uint256 private constant LINE_X = 300;       // x position
-    uint256 private constant LINE_WIDTH = 400;   // width (300 to 700)
-    uint256 private constant LINE_HEIGHT = 2;    // height (2 viewBox units = 8px output)
-    uint256 private constant LINE_Y_TOP = 200;   // top line y
+    uint256 private constant LINE_X = 300; // x position
+    uint256 private constant LINE_WIDTH = 400; // width (300 to 700)
+    uint256 private constant LINE_HEIGHT = 2; // height (2 viewBox units = 8px output)
+    uint256 private constant LINE_Y_TOP = 200; // top line y
     uint256 private constant LINE_Y_BOTTOM = 799; // bottom line y
 
     /*//////////////////////////////////////////////////////////////
@@ -35,27 +36,45 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
 
     string public name;
     string public description;
+    string public author;
+    string[] private _urls;
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor() {
-        name = "Here, For Now";
-        description = "This work treats the chain as a place where presence can be held, not just seen. Living directly on programmable money, it uses ETH itself as the material for showing up: a single contract where people leave part of their balance alongside others, with no yield and no reward. Being present here simply means letting some of your ETH remain for a while. Withdrawing it is always possible, but each decision to stay or to leave is reflected in the brightness of the image and in the brief overlap of everyone who chose to be here at the same time.";
+    constructor(
+        string memory name_,
+        string memory description_,
+        string memory author_,
+        string[] memory urls_
+    ) {
+        name = name_;
+        description = description_;
+        author = author_;
+        _urls = urls_;
     }
 
     /*//////////////////////////////////////////////////////////////
                             ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Updates the metadata name and description
+    /// @notice Updates the metadata
     function setMetadata(
         string memory _name,
-        string memory _description
+        string memory _description,
+        string memory _author,
+        string[] memory urls_
     ) external onlyOwner {
         name = _name;
         description = _description;
+        author = _author;
+        _urls = urls_;
+    }
+
+    /// @notice Returns the URLs
+    function urls() external view returns (string[] memory) {
+        return _urls;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -64,10 +83,10 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
 
     /// @inheritdoc IHereForNowRenderer
     function tokenURI(
-        uint256 activeDepositors,
+        uint256 activeParticipants,
         uint256 totalBalance
     ) external view override returns (string memory) {
-        string memory svg = generateSVG(activeDepositors);
+        string memory svg = generateSVG(activeParticipants);
         string memory base64SVG = Base64.encode(bytes(svg));
 
         string memory json = string(
@@ -78,26 +97,29 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
                 description,
                 '","image":"data:image/svg+xml;base64,',
                 base64SVG,
-                '","attributes":[{"trait_type":"Present Depositors","value":',
-                activeDepositors.toString(),
+                '","attributes":[{"trait_type":"Present","value":',
+                activeParticipants.toString(),
                 '},{"trait_type":"Total ETH Held","value":"',
                 _formatEther(totalBalance),
                 '"}]}'
             )
         );
 
-        return string(
-            abi.encodePacked(
-                "data:application/json;base64,",
-                Base64.encode(bytes(json))
-            )
-        );
+        return
+            string(
+                abi.encodePacked(
+                    "data:application/json;base64,",
+                    Base64.encode(bytes(json))
+                )
+            );
     }
 
     /// @inheritdoc IHereForNowRenderer
     /// @dev Uses assembly for gas-efficient string building
-    function generateSVG(uint256 activeDepositors) public pure override returns (string memory) {
-        uint256 totalLines = 2 + activeDepositors;
+    function generateSVG(
+        uint256 activeParticipants
+    ) public pure override returns (string memory) {
+        uint256 totalLines = 2 + activeParticipants;
 
         // Pre-calculate buffer size
         // Header: ~185 bytes, each line: ~28 bytes max, footer: 6 bytes
@@ -112,9 +134,18 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
 
         // Write SVG header with viewBox scaling
         // Output: 4000x4000, ViewBox: 1000x1000 (4x scale)
-        ptr = _writeString(ptr, '<svg width="4000" height="4000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">');
-        ptr = _writeString(ptr, '<defs><rect id="l" width="400" height="2" fill="white"/></defs>');
-        ptr = _writeString(ptr, '<rect width="1000" height="1000" fill="#0A0A0A"/>');
+        ptr = _writeString(
+            ptr,
+            '<svg width="4000" height="4000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        );
+        ptr = _writeString(
+            ptr,
+            '<defs><rect id="l" width="400" height="2" fill="white"/></defs>'
+        );
+        ptr = _writeString(
+            ptr,
+            '<rect width="1000" height="1000" fill="#0A0A0A"/>'
+        );
 
         // Calculate and write lines
         uint256 verticalSpan = LINE_Y_BOTTOM - LINE_Y_TOP; // 599
@@ -131,7 +162,10 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
                 // y = top + span * (1 - (1-t)²) = top + span - span * (1000-t)² / 1000000
                 uint256 t = (i * 1000) / intervals;
                 uint256 invT = 1000 - t;
-                uint256 y = LINE_Y_TOP + verticalSpan - (verticalSpan * invT * invT) / 1000000;
+                uint256 y = LINE_Y_TOP +
+                    verticalSpan -
+                    (verticalSpan * invT * invT) /
+                    1000000;
 
                 ptr = _writeString(ptr, '<use href="#l" x="300" y="');
                 ptr = _writeUint(ptr, y);
@@ -139,7 +173,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
             }
         }
 
-        ptr = _writeString(ptr, '</svg>');
+        ptr = _writeString(ptr, "</svg>");
 
         // Set actual length
         assembly {
@@ -155,16 +189,22 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Writes a string to memory at ptr, returns new ptr
-    function _writeString(uint256 ptr, string memory str) internal pure returns (uint256) {
+    function _writeString(
+        uint256 ptr,
+        string memory str
+    ) internal pure returns (uint256) {
         bytes memory b = bytes(str);
         uint256 len = b.length;
 
         assembly {
             let src := add(b, 32)
             let dst := ptr
-
             // Copy 32 bytes at a time
-            for { let i := 0 } lt(i, len) { i := add(i, 32) } {
+            for {
+                let i := 0
+            } lt(i, len) {
+                i := add(i, 32)
+            } {
                 mstore(add(dst, i), mload(add(src, i)))
             }
 
@@ -175,7 +215,10 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     }
 
     /// @dev Writes a uint to memory as decimal string, returns new ptr
-    function _writeUint(uint256 ptr, uint256 value) internal pure returns (uint256) {
+    function _writeUint(
+        uint256 ptr,
+        uint256 value
+    ) internal pure returns (uint256) {
         if (value == 0) {
             assembly {
                 mstore8(ptr, 48) // '0'
@@ -195,7 +238,11 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         // Write digits in reverse
         assembly {
             let end := add(ptr, digits)
-            for { let v := value } gt(v, 0) { v := div(v, 10) } {
+            for {
+                let v := value
+            } gt(v, 0) {
+                v := div(v, 10)
+            } {
                 end := sub(end, 1)
                 mstore8(end, add(48, mod(v, 10)))
             }
@@ -210,7 +257,9 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Formats wei to ETH string with 4 decimal places
-    function _formatEther(uint256 weiAmount) internal pure returns (string memory) {
+    function _formatEther(
+        uint256 weiAmount
+    ) internal pure returns (string memory) {
         uint256 whole = weiAmount / 1e18;
         uint256 fraction = (weiAmount % 1e18) / 1e14;
 
@@ -227,6 +276,9 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
             fractionStr = fraction.toString();
         }
 
-        return string(abi.encodePacked(whole.toString(), ".", fractionStr, " ETH"));
+        return
+            string(
+                abi.encodePacked(whole.toString(), ".", fractionStr, " ETH")
+            );
     }
 }

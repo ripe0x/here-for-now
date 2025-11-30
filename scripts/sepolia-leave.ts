@@ -4,14 +4,14 @@ import * as path from "path";
 import { waitForTx, shortHash } from "./lib/tx-utils";
 
 /**
- * Withdraw ETH from the extension for test accounts
+ * Leave the artwork and reclaim ETH for test accounts
  *
  * Usage:
- *   npx hardhat run scripts/sepolia-withdraw.ts --network sepolia
- *   COUNT=3 npx hardhat run scripts/sepolia-withdraw.ts --network sepolia
+ *   npx hardhat run scripts/sepolia-leave.ts --network sepolia
+ *   COUNT=3 npx hardhat run scripts/sepolia-leave.ts --network sepolia
  *
  * Environment variables:
- *   COUNT    Number of accounts to withdraw from (default: all with balances)
+ *   COUNT    Number of accounts to leave from (default: all with balances)
  */
 
 const ACCOUNTS_FILE = path.join(__dirname, "..", "test-accounts.json");
@@ -19,9 +19,9 @@ const DEPLOYMENT_FILE = path.join(__dirname, "..", `deployment-${network.name}.j
 
 // Extension ABI (minimal)
 const EXTENSION_ABI = [
-  "function withdraw() external",
+  "function leave() external",
   "function balanceOf(address) view returns (uint256)",
-  "function getActiveDepositors() view returns (uint256)",
+  "function getActiveParticipants() view returns (uint256)",
   "function getTotalBalance() view returns (uint256)",
 ];
 
@@ -47,7 +47,7 @@ function parseArgs(): { count: number | null } {
 async function main() {
   const { count } = parseArgs();
 
-  console.log("Sepolia Withdraw Script\n");
+  console.log("Sepolia Leave Script\n");
   console.log("=".repeat(50));
 
   // Load test accounts
@@ -73,15 +73,15 @@ async function main() {
   const extension = new ethers.Contract(deployment.extension, EXTENSION_ABI, ethers.provider);
 
   // Get initial state
-  const initialDepositors = await extension.getActiveDepositors();
+  const initialParticipants = await extension.getActiveParticipants();
   const initialBalance = await extension.getTotalBalance();
 
   console.log(`\nInitial state:`);
-  console.log(`  Active depositors: ${initialDepositors}`);
+  console.log(`  Active participants: ${initialParticipants}`);
   console.log(`  Total balance: ${ethers.formatEther(initialBalance)} ETH`);
 
   // Find accounts with balances
-  console.log("\nScanning for accounts with deposits...");
+  console.log("\nScanning for accounts with balances...");
   const accountsWithBalance: { account: TestAccount; balance: bigint }[] = [];
 
   for (const account of accountsData.accounts) {
@@ -91,28 +91,28 @@ async function main() {
     }
   }
 
-  console.log(`Found ${accountsWithBalance.length} accounts with deposits`);
+  console.log(`Found ${accountsWithBalance.length} accounts with balances`);
 
   if (accountsWithBalance.length === 0) {
-    console.log("\nNo accounts have deposits. Nothing to withdraw.");
+    console.log("\nNo accounts have balances. Nothing to leave.");
     process.exit(0);
   }
 
-  // Determine how many to withdraw
-  const withdrawCount = count !== null
+  // Determine how many to leave
+  const leaveCount = count !== null
     ? Math.min(count, accountsWithBalance.length)
     : accountsWithBalance.length;
 
-  console.log(`Withdrawing from ${withdrawCount} accounts`);
+  console.log(`Leaving from ${leaveCount} accounts`);
 
-  // Withdraw from accounts
+  // Leave from accounts
   console.log("\n" + "=".repeat(50));
-  console.log("Withdrawing...\n");
+  console.log("Leaving...\n");
 
   let successful = 0;
   let failed = 0;
 
-  for (let i = 0; i < withdrawCount; i++) {
+  for (let i = 0; i < leaveCount; i++) {
     const { account, balance } = accountsWithBalance[i];
     const wallet = new ethers.Wallet(account.privateKey, ethers.provider);
     const extensionWithSigner = new ethers.Contract(deployment.extension, EXTENSION_ABI, wallet);
@@ -121,10 +121,10 @@ async function main() {
     console.log(`    Balance: ${ethers.formatEther(balance)} ETH`);
 
     try {
-      const tx = await extensionWithSigner.withdraw();
+      const tx = await extensionWithSigner.leave();
       console.log(`    Sending... (${shortHash(tx.hash)})`);
       await waitForTx(tx, 60000);
-      console.log(`    ✓ Withdrawn`);
+      console.log(`    ✓ Left`);
       successful++;
     } catch (error: any) {
       console.log(`    ✗ Failed - ${error.message.slice(0, 50)}`);
@@ -133,18 +133,18 @@ async function main() {
   }
 
   // Get final state
-  const finalDepositors = await extension.getActiveDepositors();
+  const finalParticipants = await extension.getActiveParticipants();
   const finalBalance = await extension.getTotalBalance();
 
   console.log("\n" + "=".repeat(50));
-  console.log("Withdrawal Complete!");
+  console.log("Leave Complete!");
   console.log("=".repeat(50));
   console.log(`\nResults:`);
   console.log(`  Successful: ${successful}`);
   console.log(`  Failed:     ${failed}`);
 
   console.log(`\nFinal state:`);
-  console.log(`  Active depositors: ${finalDepositors} (was ${initialDepositors})`);
+  console.log(`  Active participants: ${finalParticipants} (was ${initialParticipants})`);
   console.log(`  Total balance: ${ethers.formatEther(finalBalance)} ETH (was ${ethers.formatEther(initialBalance)})`);
 }
 

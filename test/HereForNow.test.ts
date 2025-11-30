@@ -14,6 +14,14 @@ import { Contract } from "ethers";
 
 const MANIFOLD_CORE = "0x09CA1D7D0419d444AdFbb2c47FF0b2F29f29D3B2";
 
+// Renderer metadata configuration
+const RENDERER_CONFIG = {
+  name: "Here, For Now",
+  description: "This work treats the chain as a place where presence can be held, not just seen. Living directly on programmable money, it uses ETH itself as the material for showing up.",
+  author: "ripe0x.eth",
+  urls: ["https://hfn.ripe.wtf", "https://superrare.com/curation/exhibitions/intimate-systems"],
+};
+
 // Minimal ABI for the Manifold creator core - what a marketplace would use
 const MANIFOLD_ABI = [
   "function owner() view returns (address)",
@@ -73,7 +81,12 @@ describe("HereForNow", function () {
 
     // Deploy renderer
     const Renderer = await ethers.getContractFactory("HereForNowRenderer", deployer);
-    renderer = await Renderer.deploy();
+    renderer = await Renderer.deploy(
+      RENDERER_CONFIG.name,
+      RENDERER_CONFIG.description,
+      RENDERER_CONFIG.author,
+      RENDERER_CONFIG.urls
+    );
     await renderer.waitForDeployment();
 
     // Deploy extension
@@ -129,46 +142,46 @@ describe("HereForNow", function () {
     });
   });
 
-  describe("Deposits", function () {
-    it("should accept ETH deposits", async function () {
-      const depositAmount = ethers.parseEther("1");
+  describe("Entering", function () {
+    it("should accept ETH to enter", async function () {
+      const enterAmount = ethers.parseEther("1");
 
-      await expect(extension.connect(alice).deposit({ value: depositAmount }))
-        .to.emit(extension, "Deposited")
-        .withArgs(alice.address, depositAmount, depositAmount);
+      await expect(extension.connect(alice).enter({ value: enterAmount }))
+        .to.emit(extension, "Entered")
+        .withArgs(alice.address, enterAmount, enterAmount);
 
-      expect(await extension.balanceOf(alice.address)).to.equal(depositAmount);
-      expect(await extension.totalBalance()).to.be.gte(depositAmount);
+      expect(await extension.balanceOf(alice.address)).to.equal(enterAmount);
+      expect(await extension.totalBalance()).to.be.gte(enterAmount);
     });
 
-    it("should track multiple deposits from same address", async function () {
+    it("should track multiple entries from same address", async function () {
       const initialBalance = await extension.balanceOf(alice.address);
-      const deposit1 = ethers.parseEther("1");
-      const deposit2 = ethers.parseEther("0.5");
+      const entry1 = ethers.parseEther("1");
+      const entry2 = ethers.parseEther("0.5");
 
-      await extension.connect(alice).deposit({ value: deposit1 });
-      await extension.connect(alice).deposit({ value: deposit2 });
+      await extension.connect(alice).enter({ value: entry1 });
+      await extension.connect(alice).enter({ value: entry2 });
 
-      expect(await extension.balanceOf(alice.address)).to.equal(initialBalance + deposit1 + deposit2);
+      expect(await extension.balanceOf(alice.address)).to.equal(initialBalance + entry1 + entry2);
     });
 
-    it("should track multiple depositors correctly", async function () {
-      const initialDepositors = await extension.activeDepositors();
+    it("should track multiple participants correctly", async function () {
+      const initialParticipants = await extension.activeParticipants();
 
-      // Bob deposits
-      await extension.connect(bob).deposit({ value: ethers.parseEther("2") });
+      // Bob enters
+      await extension.connect(bob).enter({ value: ethers.parseEther("2") });
 
-      // Charlie deposits
-      await extension.connect(charlie).deposit({ value: ethers.parseEther("0.5") });
+      // Charlie enters
+      await extension.connect(charlie).enter({ value: ethers.parseEther("0.5") });
 
-      // Should have at least 2 more depositors (bob and charlie)
-      expect(await extension.activeDepositors()).to.be.gte(initialDepositors + 2n);
+      // Should have at least 2 more participants (bob and charlie)
+      expect(await extension.activeParticipants()).to.be.gte(initialParticipants + 2n);
     });
 
-    it("should reject zero deposits", async function () {
+    it("should reject zero amount", async function () {
       await expect(
-        extension.connect(alice).deposit({ value: 0 })
-      ).to.be.revertedWithCustomError(extension, "ZeroDeposit");
+        extension.connect(alice).enter({ value: 0 })
+      ).to.be.revertedWithCustomError(extension, "ZeroAmount");
     });
 
     it("should reject direct ETH transfers", async function () {
@@ -181,59 +194,59 @@ describe("HereForNow", function () {
     });
   });
 
-  describe("Withdrawals", function () {
-    it("should allow full withdrawal", async function () {
+  describe("Leaving", function () {
+    it("should allow full leave", async function () {
       const signers = await ethers.getSigners();
-      const withdrawTestAccount = signers[5];
+      const leaveTestAccount = signers[5];
 
-      // Deposit first
-      const depositAmount = ethers.parseEther("2");
-      await extension.connect(withdrawTestAccount).deposit({ value: depositAmount });
+      // Enter first
+      const enterAmount = ethers.parseEther("2");
+      await extension.connect(leaveTestAccount).enter({ value: enterAmount });
 
-      const balanceBefore = await ethers.provider.getBalance(withdrawTestAccount.address);
-      const extensionBalanceBefore = await extension.balanceOf(withdrawTestAccount.address);
+      const balanceBefore = await ethers.provider.getBalance(leaveTestAccount.address);
+      const extensionBalanceBefore = await extension.balanceOf(leaveTestAccount.address);
 
-      const tx = await extension.connect(withdrawTestAccount).withdraw();
+      const tx = await extension.connect(leaveTestAccount).leave();
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
 
-      const balanceAfter = await ethers.provider.getBalance(withdrawTestAccount.address);
+      const balanceAfter = await ethers.provider.getBalance(leaveTestAccount.address);
 
-      // Should have received their deposit back (minus gas)
+      // Should have received their ETH back (minus gas)
       expect(balanceAfter).to.equal(balanceBefore + extensionBalanceBefore - gasUsed);
-      expect(await extension.balanceOf(withdrawTestAccount.address)).to.equal(0);
+      expect(await extension.balanceOf(leaveTestAccount.address)).to.equal(0);
     });
 
-    it("should emit Withdrawn event", async function () {
+    it("should emit Left event", async function () {
       const signers = await ethers.getSigners();
       const testAccount = signers[6];
 
-      const depositAmount = ethers.parseEther("1");
-      await extension.connect(testAccount).deposit({ value: depositAmount });
+      const enterAmount = ethers.parseEther("1");
+      await extension.connect(testAccount).enter({ value: enterAmount });
 
-      await expect(extension.connect(testAccount).withdraw())
-        .to.emit(extension, "Withdrawn")
-        .withArgs(testAccount.address, depositAmount);
+      await expect(extension.connect(testAccount).leave())
+        .to.emit(extension, "Left")
+        .withArgs(testAccount.address, enterAmount);
     });
 
-    it("should reject withdrawal with no balance", async function () {
+    it("should reject leave with no balance", async function () {
       const signers = await ethers.getSigners();
       const emptyAccount = signers[7];
 
       await expect(
-        extension.connect(emptyAccount).withdraw()
+        extension.connect(emptyAccount).leave()
       ).to.be.revertedWithCustomError(extension, "NoBalance");
     });
 
-    it("should allow re-deposit after withdrawal", async function () {
+    it("should allow re-entry after leaving", async function () {
       const signers = await ethers.getSigners();
       const testAccount = signers[8];
 
-      await extension.connect(testAccount).deposit({ value: ethers.parseEther("1") });
-      await extension.connect(testAccount).withdraw();
+      await extension.connect(testAccount).enter({ value: ethers.parseEther("1") });
+      await extension.connect(testAccount).leave();
       expect(await extension.balanceOf(testAccount.address)).to.equal(0);
 
-      await extension.connect(testAccount).deposit({ value: ethers.parseEther("0.5") });
+      await extension.connect(testAccount).enter({ value: ethers.parseEther("0.5") });
       expect(await extension.balanceOf(testAccount.address)).to.equal(ethers.parseEther("0.5"));
     });
   });
@@ -248,8 +261,8 @@ describe("HereForNow", function () {
       expect(totalBalance).to.be.gt(0);
     });
 
-    it("should return correct active depositor count", async function () {
-      const count = await extension.getActiveDepositors();
+    it("should return correct active participant count", async function () {
+      const count = await extension.getActiveParticipants();
       expect(count).to.be.gt(0);
     });
 
@@ -257,8 +270,8 @@ describe("HereForNow", function () {
       expect(await extension.isPresent(alice.address)).to.be.true;
 
       const signers = await ethers.getSigners();
-      const neverDeposited = signers[15];
-      expect(await extension.isPresent(neverDeposited.address)).to.be.false;
+      const neverEntered = signers[15];
+      expect(await extension.isPresent(neverEntered.address)).to.be.false;
     });
   });
 
@@ -271,31 +284,37 @@ describe("HereForNow", function () {
     it("should allow owner to update metadata", async function () {
       const originalName = await renderer.name();
       const originalDesc = await renderer.description();
+      const originalAuthor = await renderer.author();
+      const originalUrls = [...(await renderer.urls())]; // Copy array
 
-      await renderer.setMetadata("New Name", "New Description");
+      await renderer.setMetadata("New Name", "New Description", "newauthor.eth", ["https://new.url"]);
       expect(await renderer.name()).to.equal("New Name");
       expect(await renderer.description()).to.equal("New Description");
+      expect(await renderer.author()).to.equal("newauthor.eth");
 
       // Restore original
-      await renderer.setMetadata(originalName, originalDesc);
+      await renderer.setMetadata(originalName, originalDesc, originalAuthor, originalUrls);
+
+      // Verify restoration
+      expect(await renderer.name()).to.equal(originalName);
     });
 
     it("should not allow non-owner to update metadata", async function () {
       await expect(
-        renderer.connect(alice).setMetadata("Hack", "Hacked")
+        renderer.connect(alice).setMetadata("Hack", "Hacked", "hacker.eth", [])
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("should generate SVG with correct number of lines", async function () {
-      // 0 depositors = 2 lines (top + bottom)
+      // 0 participants = 2 lines (top + bottom)
       let svg = await renderer.generateSVG(0);
       expect((svg.match(/<use/g) || []).length).to.equal(2);
 
-      // 1 depositor = 3 lines
+      // 1 participant = 3 lines
       svg = await renderer.generateSVG(1);
       expect((svg.match(/<use/g) || []).length).to.equal(3);
 
-      // 5 depositors = 7 lines
+      // 5 participants = 7 lines
       svg = await renderer.generateSVG(5);
       expect((svg.match(/<use/g) || []).length).to.equal(7);
     });
@@ -333,11 +352,11 @@ describe("HereForNow", function () {
       // Check attributes exist
       expect(json.attributes).to.be.an("array");
 
-      const depositorAttr = json.attributes.find(
-        (a: { trait_type: string }) => a.trait_type === "Present Depositors"
+      const presentAttr = json.attributes.find(
+        (a: { trait_type: string }) => a.trait_type === "Present"
       );
-      expect(depositorAttr).to.exist;
-      expect(depositorAttr.value).to.be.gte(0);
+      expect(presentAttr).to.exist;
+      expect(presentAttr.value).to.be.gte(0);
 
       const balanceAttr = json.attributes.find(
         (a: { trait_type: string }) => a.trait_type === "Total ETH Held"
@@ -346,7 +365,7 @@ describe("HereForNow", function () {
       expect(balanceAttr.value).to.include("ETH");
     });
 
-    it("should update token metadata when deposits change", async function () {
+    it("should update token metadata when participants change", async function () {
       const signers = await ethers.getSigners();
       const freshAccount = signers[10];
 
@@ -355,26 +374,26 @@ describe("HereForNow", function () {
       const jsonBefore = JSON.parse(
         Buffer.from(uriBefore.replace("data:application/json;base64,", ""), "base64").toString()
       );
-      const depositorsBefore = jsonBefore.attributes.find(
-        (a: { trait_type: string }) => a.trait_type === "Present Depositors"
+      const participantsBefore = jsonBefore.attributes.find(
+        (a: { trait_type: string }) => a.trait_type === "Present"
       ).value;
 
-      // Make a deposit
-      await extension.connect(freshAccount).deposit({ value: ethers.parseEther("0.1") });
+      // Enter
+      await extension.connect(freshAccount).enter({ value: ethers.parseEther("0.1") });
 
       // Get updated state from Manifold core
       const uriAfter = await manifoldCore.tokenURI(tokenId);
       const jsonAfter = JSON.parse(
         Buffer.from(uriAfter.replace("data:application/json;base64,", ""), "base64").toString()
       );
-      const depositorsAfter = jsonAfter.attributes.find(
-        (a: { trait_type: string }) => a.trait_type === "Present Depositors"
+      const participantsAfter = jsonAfter.attributes.find(
+        (a: { trait_type: string }) => a.trait_type === "Present"
       ).value;
 
-      expect(depositorsAfter).to.equal(depositorsBefore + 1);
+      expect(participantsAfter).to.equal(participantsBefore + 1);
 
-      // Clean up - withdraw
-      await extension.connect(freshAccount).withdraw();
+      // Clean up - leave
+      await extension.connect(freshAccount).leave();
     });
 
     it("should reject tokenURI call on extension for wrong core", async function () {
@@ -396,9 +415,9 @@ describe("HereForNow", function () {
       expect(svg).to.include("<svg");
       expect(svg).to.include("</svg>");
 
-      // Should have at least 2 lines (top + bottom) plus depositors
-      const depositors = await extension.activeDepositors();
-      const expectedLines = Number(depositors) + 2;
+      // Should have at least 2 lines (top + bottom) plus participants
+      const participants = await extension.activeParticipants();
+      const expectedLines = Number(participants) + 2;
       expect((svg.match(/<use/g) || []).length).to.equal(expectedLines);
     });
   });
@@ -409,7 +428,12 @@ describe("HereForNow", function () {
 
       const newRenderer = await (
         await ethers.getContractFactory("HereForNowRenderer")
-      ).deploy();
+      ).deploy(
+        RENDERER_CONFIG.name,
+        RENDERER_CONFIG.description,
+        RENDERER_CONFIG.author,
+        RENDERER_CONFIG.urls
+      );
 
       await expect(extension.setRenderer(await newRenderer.getAddress()))
         .to.emit(extension, "RendererUpdated")
@@ -424,7 +448,12 @@ describe("HereForNow", function () {
     it("should not allow non-admin to update renderer", async function () {
       const newRenderer = await (
         await ethers.getContractFactory("HereForNowRenderer")
-      ).deploy();
+      ).deploy(
+        RENDERER_CONFIG.name,
+        RENDERER_CONFIG.description,
+        RENDERER_CONFIG.author,
+        RENDERER_CONFIG.urls
+      );
 
       await expect(
         extension.connect(alice).setRenderer(await newRenderer.getAddress())
@@ -433,38 +462,38 @@ describe("HereForNow", function () {
   });
 
   describe("Edge Cases", function () {
-    it("should handle many depositors", async function () {
+    it("should handle many participants", async function () {
       const signers = await ethers.getSigners();
-      const depositAmount = ethers.parseEther("0.01");
+      const enterAmount = ethers.parseEther("0.01");
       const startIndex = 11;
-      const numDepositors = 5;
+      const numParticipants = 5;
 
-      const initialDepositors = await extension.activeDepositors();
+      const initialParticipants = await extension.activeParticipants();
 
-      // Deposit from multiple accounts
-      for (let i = startIndex; i < startIndex + numDepositors; i++) {
-        await extension.connect(signers[i]).deposit({ value: depositAmount });
+      // Enter from multiple accounts
+      for (let i = startIndex; i < startIndex + numParticipants; i++) {
+        await extension.connect(signers[i]).enter({ value: enterAmount });
       }
 
-      expect(await extension.activeDepositors()).to.equal(initialDepositors + BigInt(numDepositors));
+      expect(await extension.activeParticipants()).to.equal(initialParticipants + BigInt(numParticipants));
 
       // Verify SVG updates correctly
       const svg = await extension.svg();
-      const currentDepositors = await extension.activeDepositors();
-      expect((svg.match(/<use/g) || []).length).to.equal(Number(currentDepositors) + 2);
+      const currentParticipants = await extension.activeParticipants();
+      expect((svg.match(/<use/g) || []).length).to.equal(Number(currentParticipants) + 2);
 
       // Clean up
-      for (let i = startIndex; i < startIndex + numDepositors; i++) {
-        await extension.connect(signers[i]).withdraw();
+      for (let i = startIndex; i < startIndex + numParticipants; i++) {
+        await extension.connect(signers[i]).leave();
       }
     });
 
-    it("should handle deposit and withdraw in same block", async function () {
+    it("should handle enter and leave in same block", async function () {
       const signers = await ethers.getSigners();
       const testAccount = signers[16];
 
-      await extension.connect(testAccount).deposit({ value: ethers.parseEther("1") });
-      await extension.connect(testAccount).withdraw();
+      await extension.connect(testAccount).enter({ value: ethers.parseEther("1") });
+      await extension.connect(testAccount).leave();
 
       expect(await extension.balanceOf(testAccount.address)).to.equal(0);
     });

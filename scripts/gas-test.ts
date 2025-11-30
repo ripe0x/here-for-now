@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 /**
- * Test gas usage for generateSVG at various depositor counts
+ * Test gas usage for generateSVG at various participant counts
  * Run with: npx hardhat run scripts/gas-test.ts
  */
 async function main() {
@@ -13,8 +13,8 @@ async function main() {
 
   const testCounts = [0, 10, 50, 100, 200, 300, 400, 500, 598, 700, 800, 1000, 1500, 2000];
 
-  console.log("Depositors | Lines | Gas Used    | SVG Size | Status");
-  console.log("-----------|-------|-------------|----------|--------");
+  console.log("Participants | Lines | Gas Used    | SVG Size | Status");
+  console.log("-------------|-------|-------------|----------|--------");
 
   for (const count of testCounts) {
     try {
@@ -37,7 +37,7 @@ async function main() {
       if (count > 100) {
         console.log("\n  Binary searching for exact limit...");
         const limit = await findLimit(renderer, testCounts[testCounts.indexOf(count) - 1], count);
-        console.log(`  Maximum safe depositors: ~${limit}\n`);
+        console.log(`  Maximum safe participants: ~${limit}\n`);
         break;
       }
     }

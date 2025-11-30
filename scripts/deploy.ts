@@ -35,6 +35,14 @@ const MANIFOLD_ABI = [
   "function isAdmin(address account) view returns (bool)",
 ];
 
+// Renderer metadata configuration
+const RENDERER_CONFIG = {
+  name: "Here, For Now",
+  description: "This work treats the chain as a place where presence can be held, not just seen. Living directly on programmable money, it uses ETH itself as the material for showing up: a single contract where people leave part of their balance alongside others, with no yield and no reward. Being present here simply means letting some of your ETH remain for a while. Withdrawing it is always possible, but each decision to stay or to leave is reflected in the brightness of the image and in the brief overlap of everyone who chose to be here at the same time.",
+  author: "ripe0x.eth",
+  urls: ["https://hfn.ripe.wtf", "https://superrare.com/curation/exhibitions/intimate-systems"],
+};
+
 interface DeployProgress {
   network: string;
   step: number;
@@ -208,7 +216,12 @@ async function main() {
     }
 
     const Renderer = await ethers.getContractFactory("HereForNowRenderer");
-    renderer = await Renderer.deploy();
+    renderer = await Renderer.deploy(
+      RENDERER_CONFIG.name,
+      RENDERER_CONFIG.description,
+      RENDERER_CONFIG.author,
+      RENDERER_CONFIG.urls
+    );
     progress.rendererTxHash = renderer.deploymentTransaction()?.hash;
     progress.rendererAddress = await renderer.getAddress();
     progress.step = 1;

@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -6,21 +6,31 @@ import * as path from "path";
  * Visualization script for HereForNow artwork
  *
  * This script:
- * 1. Deploys contracts locally
- * 2. Simulates various deposit patterns
+ * 1. Uses a mainnet fork with the real Manifold creator contract
+ * 2. Simulates various entry patterns
  * 3. Generates SVGs for different states
  * 4. Writes them to ./outputs/state-*.svg
  * 5. Creates an HTML preview page
  *
- * Run with: npx hardhat run scripts/visualize.ts --network localhost
- * (Make sure to run `npx hardhat node` first)
+ * Run with: npx hardhat run scripts/visualize.ts --network hardhat
+ * (Requires MAINNET_RPC_URL in .env for forking)
  */
+
+const MAINNET_MANIFOLD_CORE = process.env.MAINNET_MANIFOLD_CORE || "";
+
+// Renderer metadata configuration
+const RENDERER_CONFIG = {
+  name: "Here, For Now",
+  description: "This work treats the chain as a place where presence can be held, not just seen.",
+  author: "ripe0x.eth",
+  urls: ["https://hfn.ripe.wtf"],
+};
 
 const OUTPUT_DIR = path.join(__dirname, "..", "outputs");
 
 interface State {
   name: string;
-  depositors: number;
+  participants: number;
   totalBalance: string;
   svg: string;
 }
@@ -33,24 +43,55 @@ async function main() {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   }
 
+  if (!MAINNET_MANIFOLD_CORE) {
+    throw new Error("MAINNET_MANIFOLD_CORE not set in .env");
+  }
+
   const signers = await ethers.getSigners();
   const deployer = signers[0];
 
-  // Deploy contracts
+  // Connect to the real Manifold core contract on the fork
+  console.log("Connecting to Manifold core:", MAINNET_MANIFOLD_CORE);
+  const manifoldCore = await ethers.getContractAt(
+    ["function owner() view returns (address)", "function registerExtension(address,string)", "function tokenURI(uint256) view returns (string)"],
+    MAINNET_MANIFOLD_CORE
+  );
+
+  // Get the owner of the Manifold core and impersonate them
+  const ownerAddress = await manifoldCore.owner();
+  console.log("Manifold core owner:", ownerAddress);
+
+  await network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: [ownerAddress],
+  });
+
+  // Fund the owner account for gas
+  await deployer.sendTransaction({
+    to: ownerAddress,
+    value: ethers.parseEther("10"),
+  });
+
+  const owner = await ethers.getSigner(ownerAddress);
+
+  // Deploy renderer and extension
   console.log("Deploying contracts...");
 
-  const MockCore = await ethers.getContractFactory("MockERC721CreatorCore");
-  const mockCore = await MockCore.deploy();
-
   const Renderer = await ethers.getContractFactory("HereForNowRenderer");
-  const renderer = await Renderer.deploy();
+  const renderer = await Renderer.deploy(
+    RENDERER_CONFIG.name,
+    RENDERER_CONFIG.description,
+    RENDERER_CONFIG.author,
+    RENDERER_CONFIG.urls
+  );
 
   const Extension = await ethers.getContractFactory("HereForNowExtension");
   const extension = await Extension.deploy();
 
-  await mockCore.registerExtension(await extension.getAddress(), "");
+  // Register extension using impersonated owner
+  await manifoldCore.connect(owner).registerExtension(await extension.getAddress(), "");
   await extension.setRenderer(await renderer.getAddress());
-  await extension.initialize(await mockCore.getAddress());
+  await extension.initialize(MAINNET_MANIFOLD_CORE);
 
   console.log("Contracts deployed.\n");
 
@@ -59,11 +100,11 @@ async function main() {
   // Helper to generate a state
   async function captureState(name: string, filename: string) {
     const svg = await extension.svg();
-    const depositors = await extension.activeDepositors();
+    const participants = await extension.activeParticipants();
     const totalBalance = await extension.totalBalance();
     states.push({
       name,
-      depositors: Number(depositors),
+      participants: Number(participants),
       totalBalance: ethers.formatEther(totalBalance),
       svg,
     });
@@ -71,9 +112,9 @@ async function main() {
     console.log(`  Written to ${filename}`);
   }
 
-  // Helper to add N new depositors using generated wallets
-  async function addDepositors(count: number, depositAmount: string) {
-    const amount = ethers.parseEther(depositAmount);
+  // Helper to add N new participants using generated wallets
+  async function addParticipants(count: number, enterAmount: string) {
+    const amount = ethers.parseEther(enterAmount);
     for (let i = 0; i < count; i++) {
       // Generate a random wallet
       const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
@@ -84,81 +125,81 @@ async function main() {
         value: amount + ethers.parseEther("0.01"), // Extra for gas
       });
 
-      // Deposit from wallet
-      await extension.connect(wallet).deposit({ value: amount });
+      // Enter from wallet
+      await extension.connect(wallet).enter({ value: amount });
     }
   }
 
-  // State 0: No depositors
-  console.log("Generating state 0: No depositors...");
-  await captureState("0 depositors", "state-0.svg");
+  // State 0: No participants
+  console.log("Generating state 0: No participants...");
+  await captureState("0 participants", "state-0.svg");
 
-  // State 1: 1 depositor
-  console.log("Generating state 1: 1 depositor...");
-  await extension.connect(signers[1]).deposit({ value: ethers.parseEther("1") });
-  await captureState("1 depositor", "state-1.svg");
+  // State 1: 1 participant
+  console.log("Generating state 1: 1 participant...");
+  await extension.connect(signers[1]).enter({ value: ethers.parseEther("1") });
+  await captureState("1 participant", "state-1.svg");
 
-  // State 3: 3 depositors
-  console.log("Generating state 3: 3 depositors...");
-  await extension.connect(signers[2]).deposit({ value: ethers.parseEther("0.5") });
-  await extension.connect(signers[3]).deposit({ value: ethers.parseEther("2") });
-  await captureState("3 depositors", "state-3.svg");
+  // State 3: 3 participants
+  console.log("Generating state 3: 3 participants...");
+  await extension.connect(signers[2]).enter({ value: ethers.parseEther("0.5") });
+  await extension.connect(signers[3]).enter({ value: ethers.parseEther("2") });
+  await captureState("3 participants", "state-3.svg");
 
-  // State 5: 5 depositors
-  console.log("Generating state 5: 5 depositors...");
-  await extension.connect(signers[4]).deposit({ value: ethers.parseEther("0.1") });
-  await extension.connect(signers[5]).deposit({ value: ethers.parseEther("0.25") });
-  await captureState("5 depositors", "state-5.svg");
+  // State 5: 5 participants
+  console.log("Generating state 5: 5 participants...");
+  await extension.connect(signers[4]).enter({ value: ethers.parseEther("0.1") });
+  await extension.connect(signers[5]).enter({ value: ethers.parseEther("0.25") });
+  await captureState("5 participants", "state-5.svg");
 
-  // State 10: 10 depositors
-  console.log("Generating state 10: 10 depositors...");
+  // State 10: 10 participants
+  console.log("Generating state 10: 10 participants...");
   for (let i = 6; i <= 10; i++) {
-    await extension.connect(signers[i]).deposit({ value: ethers.parseEther("0.05") });
+    await extension.connect(signers[i]).enter({ value: ethers.parseEther("0.05") });
   }
-  await captureState("10 depositors", "state-10.svg");
+  await captureState("10 participants", "state-10.svg");
 
-  // State 20: 20 depositors
-  console.log("Generating state 20: 20 depositors...");
+  // State 20: 20 participants
+  console.log("Generating state 20: 20 participants...");
   for (let i = 11; i <= 19; i++) {
-    await extension.connect(signers[i]).deposit({ value: ethers.parseEther("0.01") });
+    await extension.connect(signers[i]).enter({ value: ethers.parseEther("0.01") });
   }
-  await extension.connect(deployer).deposit({ value: ethers.parseEther("0.01") });
-  await captureState("20 depositors", "state-20.svg");
+  await extension.connect(deployer).enter({ value: ethers.parseEther("0.01") });
+  await captureState("20 participants", "state-20.svg");
 
-  // State 50: 50 depositors
-  console.log("Generating state 50: 50 depositors...");
-  await addDepositors(30, "0.01");
-  await captureState("50 depositors", "state-50.svg");
+  // State 50: 50 participants
+  console.log("Generating state 50: 50 participants...");
+  await addParticipants(30, "0.01");
+  await captureState("50 participants", "state-50.svg");
 
-  // State 100: 100 depositors
-  console.log("Generating state 100: 100 depositors...");
-  await addDepositors(50, "0.01");
-  await captureState("100 depositors", "state-100.svg");
+  // State 100: 100 participants
+  console.log("Generating state 100: 100 participants...");
+  await addParticipants(50, "0.01");
+  await captureState("100 participants", "state-100.svg");
 
-  // State 200: 200 depositors
-  console.log("Generating state 200: 200 depositors...");
-  await addDepositors(100, "0.01");
-  await captureState("200 depositors", "state-200.svg");
+  // State 200: 200 participants
+  console.log("Generating state 200: 200 participants...");
+  await addParticipants(100, "0.01");
+  await captureState("200 participants", "state-200.svg");
 
-  // State 300: 300 depositors
-  console.log("Generating state 300: 300 depositors...");
-  await addDepositors(100, "0.01");
-  await captureState("300 depositors", "state-300.svg");
+  // State 300: 300 participants
+  console.log("Generating state 300: 300 participants...");
+  await addParticipants(100, "0.01");
+  await captureState("300 participants", "state-300.svg");
 
-  // State 400: 400 depositors
-  console.log("Generating state 400: 400 depositors...");
-  await addDepositors(100, "0.01");
-  await captureState("400 depositors", "state-400.svg");
+  // State 400: 400 participants
+  console.log("Generating state 400: 400 participants...");
+  await addParticipants(100, "0.01");
+  await captureState("400 participants", "state-400.svg");
 
-  // State 500: 500 depositors
-  console.log("Generating state 500: 500 depositors...");
-  await addDepositors(100, "0.01");
-  await captureState("500 depositors", "state-500.svg");
+  // State 500: 500 participants
+  console.log("Generating state 500: 500 participants...");
+  await addParticipants(100, "0.01");
+  await captureState("500 participants", "state-500.svg");
 
-  // State 598: 598 depositors (solid block with quadratic + 2px lines)
-  console.log("Generating state 598: 598 depositors (solid block)...");
-  await addDepositors(98, "0.01");
-  await captureState("598 depositors (solid)", "state-598.svg");
+  // State 598: 598 participants (solid block with quadratic + 2px lines)
+  console.log("Generating state 598: 598 participants (solid block)...");
+  await addParticipants(98, "0.01");
+  await captureState("598 participants (solid)", "state-598.svg");
 
   // Generate HTML preview
   console.log("\nGenerating HTML preview...");
@@ -168,7 +209,8 @@ async function main() {
 
   // Also get and save the full token URI for one state
   console.log("\nSaving sample token URI...");
-  const tokenURI = await mockCore.tokenURI(2);
+  const tokenId = await extension.tokenId();
+  const tokenURI = await manifoldCore.tokenURI(tokenId);
   fs.writeFileSync(path.join(OUTPUT_DIR, "sample-token-uri.txt"), tokenURI);
   console.log("  Written to sample-token-uri.txt");
 
@@ -268,7 +310,7 @@ function generateHTMLPreview(states: State[]): string {
         <div class="state-info">
           <div class="state-name">${state.name}</div>
           <div class="state-details">
-            ${state.depositors} active depositors<br>
+            ${state.participants} active participants<br>
             ${state.totalBalance} ETH held
           </div>
         </div>

@@ -14,8 +14,8 @@ export const CONTRACTS: Record<number, { manifoldCore: Address; extension: Addre
   },
 };
 
-// Token ID minted by the extension
-export const TOKEN_ID = 2n;
+// Token ID minted by the extension (from env or default to 2)
+export const TOKEN_ID = BigInt(process.env.NEXT_PUBLIC_TOKEN_ID || "2");
 
 // Manifold Core ABI (minimal for tokenURI)
 export const MANIFOLD_ABI = [
@@ -32,14 +32,14 @@ export const MANIFOLD_ABI = [
 export const EXTENSION_ABI = [
   {
     inputs: [],
-    name: "deposit",
+    name: "enter",
     outputs: [],
     stateMutability: "payable",
     type: "function",
   },
   {
     inputs: [],
-    name: "withdraw",
+    name: "leave",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -53,7 +53,7 @@ export const EXTENSION_ABI = [
   },
   {
     inputs: [],
-    name: "getActiveDepositors",
+    name: "getActiveParticipants",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",

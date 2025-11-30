@@ -14,8 +14,8 @@
     "node:fork": "hardhat node --fork $MAINNET_RPC_URL",
     "generate:accounts": "hardhat run scripts/generate-test-accounts.ts",
     "sepolia:distribute": "hardhat run scripts/distribute-sepolia-eth.ts --network sepolia",
-    "sepolia:deposit": "hardhat run scripts/sepolia-deposit.ts --network sepolia",
-    "sepolia:withdraw": "hardhat run scripts/sepolia-withdraw.ts --network sepolia",
+    "sepolia:enter": "hardhat run scripts/sepolia-enter.ts --network sepolia",
+    "sepolia:leave": "hardhat run scripts/sepolia-leave.ts --network sepolia",
     "sepolia:status": "hardhat run scripts/sepolia-status.ts --network sepolia"
   },
   "devDependencies": {

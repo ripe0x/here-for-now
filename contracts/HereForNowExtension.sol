@@ -7,13 +7,20 @@ import "@manifoldxyz/creator-core-solidity/contracts/extensions/ICreatorExtensio
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IHereForNowRenderer.sol";
+import "./interfaces/ISculpture.sol";
 
 /// @title HereForNowExtension
 /// @notice A Manifold extension for the "Here, For Now" conceptual artwork
-/// @dev Allows addresses to deposit ETH to be "present" with the piece.
+/// @author ripe
+/// @dev Allows addresses to enter by holding ETH to be "present" with the piece.
 ///      Each non-zero balance adds a line to the visual representation.
-///      ETH is never used - it simply represents presence until withdrawn.
-contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, ReentrancyGuard {
+///      ETH is never used - it simply represents presence until leaving.
+contract HereForNowExtension is
+    AdminControl,
+    ICreatorExtensionTokenURI,
+    ReentrancyGuard,
+    ISculpture
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -22,7 +29,7 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
     error InvalidTokenId();
     error AlreadyInitialized();
     error NotInitialized();
-    error ZeroDeposit();
+    error ZeroAmount();
     error NoBalance();
     error TransferFailed();
     error DirectTransferNotAllowed();
@@ -32,8 +39,12 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event Deposited(address indexed depositor, uint256 amount, uint256 newBalance);
-    event Withdrawn(address indexed depositor, uint256 amount);
+    event Entered(
+        address indexed participant,
+        uint256 amount,
+        uint256 newBalance
+    );
+    event Left(address indexed participant, uint256 amount);
     event RendererUpdated(address indexed newRenderer);
     event Initialized(address indexed core, uint256 tokenId);
 
@@ -53,14 +64,14 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
     /// @notice Whether the extension has been initialized
     bool public initialized;
 
-    /// @notice Balance of ETH deposited by each address
+    /// @notice Balance of ETH held by each address
     mapping(address => uint256) public balanceOf;
 
     /// @notice Total ETH held in the contract
     uint256 public totalBalance;
 
     /// @notice Number of addresses with non-zero balance
-    uint256 public activeDepositors;
+    uint256 public activeParticipants;
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -105,6 +116,7 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
     ) public view virtual override(AdminControl, IERC165) returns (bool) {
         return
             interfaceId == type(ICreatorExtensionTokenURI).interfaceId ||
+            interfaceId == type(ISculpture).interfaceId ||
             AdminControl.supportsInterface(interfaceId) ||
             super.supportsInterface(interfaceId);
     }
@@ -122,49 +134,53 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
         if (_tokenId != tokenId) revert InvalidTokenId();
         if (renderer == address(0)) revert RendererNotSet();
 
-        return IHereForNowRenderer(renderer).tokenURI(activeDepositors, totalBalance);
+        return
+            IHereForNowRenderer(renderer).tokenURI(
+                activeParticipants,
+                totalBalance
+            );
     }
 
     /*//////////////////////////////////////////////////////////////
                          PRESENCE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Deposit ETH to become present with the artwork
-    /// @dev Increments the depositor's balance and potentially adds a new line
-    function deposit() external payable nonReentrant {
-        if (msg.value == 0) revert ZeroDeposit();
+    /// @notice Enter by holding ETH to become present with the artwork
+    /// @dev Increments the participant's balance and potentially adds a new line
+    function enter() external payable nonReentrant {
+        if (msg.value == 0) revert ZeroAmount();
 
-        // Track if this is a new depositor (balance was zero)
+        // Track if this is a new participant (balance was zero)
         bool wasZero = balanceOf[msg.sender] == 0;
 
         // Update balances
         balanceOf[msg.sender] += msg.value;
         totalBalance += msg.value;
 
-        // If this is a new depositor, increment active count
+        // If this is a new participant, increment active count
         if (wasZero) {
-            activeDepositors++;
+            activeParticipants++;
         }
 
-        emit Deposited(msg.sender, msg.value, balanceOf[msg.sender]);
+        emit Entered(msg.sender, msg.value, balanceOf[msg.sender]);
     }
 
-    /// @notice Withdraw all ETH and leave the artwork
+    /// @notice Leave the artwork and reclaim all ETH
     /// @dev Full withdrawal only - no partial withdrawals allowed
-    function withdraw() external nonReentrant {
+    function leave() external nonReentrant {
         uint256 balance = balanceOf[msg.sender];
         if (balance == 0) revert NoBalance();
 
         // Update state before transfer (CEI pattern)
         balanceOf[msg.sender] = 0;
         totalBalance -= balance;
-        activeDepositors--;
+        activeParticipants--;
 
-        // Transfer ETH back to depositor
+        // Transfer ETH back to participant
         (bool success, ) = msg.sender.call{value: balance}("");
         if (!success) revert TransferFailed();
 
-        emit Withdrawn(msg.sender, balance);
+        emit Left(msg.sender, balance);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -173,7 +189,7 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
 
     /// @notice Get the balance of a specific address
     /// @param account The address to query
-    /// @return The ETH balance deposited by this address
+    /// @return The ETH balance held by this address
     function getBalance(address account) external view returns (uint256) {
         return balanceOf[account];
     }
@@ -184,10 +200,10 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
         return totalBalance;
     }
 
-    /// @notice Get the number of active depositors
+    /// @notice Get the number of active participants
     /// @return The count of addresses with non-zero balance
-    function getActiveDepositors() external view returns (uint256) {
-        return activeDepositors;
+    function getActiveParticipants() external view returns (uint256) {
+        return activeParticipants;
     }
 
     /// @notice Check if an address is currently present (has non-zero balance)
@@ -201,7 +217,45 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
     /// @return The SVG string
     function svg() external view returns (string memory) {
         if (renderer == address(0)) revert RendererNotSet();
-        return IHereForNowRenderer(renderer).generateSVG(activeDepositors);
+        return IHereForNowRenderer(renderer).generateSVG(activeParticipants);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        SCULPTURE INTERFACE
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Returns the title of the artwork
+    function title() external view override returns (string memory) {
+        if (renderer == address(0)) revert RendererNotSet();
+        return IHereForNowRenderer(renderer).name();
+    }
+
+    /// @notice Returns the authors of the artwork
+    function authors() external view override returns (string[] memory) {
+        if (renderer == address(0)) revert RendererNotSet();
+        string[] memory a = new string[](1);
+        a[0] = IHereForNowRenderer(renderer).author();
+        return a;
+    }
+
+    /// @notice Returns the addresses associated with the artwork
+    function addresses() external view override returns (address[] memory) {
+        address[] memory a = new address[](2);
+        a[0] = core; // Token contract (Manifold)
+        a[1] = address(this); // Extension contract
+        return a;
+    }
+
+    /// @notice Returns URLs associated with the artwork
+    function urls() external view override returns (string[] memory) {
+        if (renderer == address(0)) revert RendererNotSet();
+        return IHereForNowRenderer(renderer).urls();
+    }
+
+    /// @notice Returns descriptive text about the artwork
+    function text() external view override returns (string memory) {
+        if (renderer == address(0)) revert RendererNotSet();
+        return IHereForNowRenderer(renderer).description();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -219,7 +273,7 @@ contract HereForNowExtension is AdminControl, ICreatorExtensionTokenURI, Reentra
                          RECEIVE / FALLBACK
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Reject direct ETH transfers - must use deposit()
+    /// @notice Reject direct ETH transfers - must use enter()
     receive() external payable {
         revert DirectTransferNotAllowed();
     }

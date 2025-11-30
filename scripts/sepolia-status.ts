@@ -7,9 +7,9 @@ import * as path from "path";
  *
  * Shows:
  * - Deployed contract addresses
- * - Active depositors count
+ * - Active participants count
  * - Total balance
- * - Which test accounts have deposited
+ * - Which test accounts have entered
  *
  * Run with: npx hardhat run scripts/sepolia-status.ts --network sepolia
  */
@@ -23,7 +23,7 @@ const EXTENSION_ABI = [
   "function tokenId() view returns (uint256)",
   "function renderer() view returns (address)",
   "function balanceOf(address) view returns (uint256)",
-  "function getActiveDepositors() view returns (uint256)",
+  "function getActiveParticipants() view returns (uint256)",
   "function getTotalBalance() view returns (uint256)",
 ];
 
@@ -84,13 +84,13 @@ async function main() {
   const manifold = new ethers.Contract(deployment.manifoldCore, MANIFOLD_ABI, ethers.provider);
 
   // Get current state
-  const activeDepositors = await extension.getActiveDepositors();
+  const activeParticipants = await extension.getActiveParticipants();
   const totalBalance = await extension.getTotalBalance();
   const tokenOwner = await manifold.ownerOf(deployment.tokenId);
 
   console.log("\n📊 CURRENT STATE");
   console.log("-".repeat(60));
-  console.log(`Active depositors: ${activeDepositors}`);
+  console.log(`Active participants: ${activeParticipants}`);
   console.log(`Total balance:     ${ethers.formatEther(totalBalance)} ETH`);
   console.log(`Token owner:       ${tokenOwner}`);
 
@@ -101,25 +101,25 @@ async function main() {
     console.log("\n👥 TEST ACCOUNTS");
     console.log("-".repeat(60));
 
-    let depositedCount = 0;
-    const depositors: { index: number; address: string; balance: string }[] = [];
+    let enteredCount = 0;
+    const participants: { index: number; address: string; balance: string }[] = [];
 
     for (const account of accountsData.accounts) {
       const balance = await extension.balanceOf(account.address);
       const walletBalance = await ethers.provider.getBalance(account.address);
 
       if (balance > 0) {
-        depositedCount++;
-        depositors.push({
+        enteredCount++;
+        participants.push({
           index: account.index,
           address: account.address,
           balance: ethers.formatEther(balance),
         });
       }
 
-      // Only show detailed status for first 5 accounts unless they have deposits
+      // Only show detailed status for first 5 accounts unless they have entered
       if (account.index < 5 || balance > 0) {
-        const status = balance > 0 ? "✓ DEPOSITED" : "○ Not deposited";
+        const status = balance > 0 ? "✓ ENTERED" : "○ Not entered";
         console.log(
           `[${account.index.toString().padStart(2)}] ${account.address.slice(0, 10)}... ` +
             `| Wallet: ${ethers.formatEther(walletBalance).padStart(8)} ETH ` +
@@ -130,13 +130,13 @@ async function main() {
 
     if (accountsData.accounts.length > 5) {
       const remaining = accountsData.accounts.length - 5;
-      const remainingDeposited = depositors.filter((d) => d.index >= 5).length;
-      if (remainingDeposited === 0) {
-        console.log(`... and ${remaining} more accounts (none deposited)`);
+      const remainingEntered = participants.filter((d) => d.index >= 5).length;
+      if (remainingEntered === 0) {
+        console.log(`... and ${remaining} more accounts (none entered)`);
       }
     }
 
-    console.log(`\nTotal: ${depositedCount}/${accountsData.accounts.length} accounts have deposited`);
+    console.log(`\nTotal: ${enteredCount}/${accountsData.accounts.length} accounts have entered`);
   } else {
     console.log("\n⚠️  test-accounts.json not found");
     console.log("   Run 'npm run generate:accounts' to create test accounts");
