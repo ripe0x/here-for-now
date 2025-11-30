@@ -1,17 +1,25 @@
 import { Address } from "viem";
 
 // Contract addresses per network
-export const CONTRACTS: Record<number, { manifoldCore: Address; extension: Address }> = {
+export const CONTRACTS: Record<number, { manifoldCore: Address; extension: Address; renderer: Address }> = {
   // Sepolia
   11155111: {
     manifoldCore: "0xA11D7EbB2404bb8CE247eaE15eF02312cC294cEc",
     extension: "0xfbFBEfA9403c226E8aa2bFE9555FaE2b3E505F10",
+    renderer: "0x7766662a22EC83cd47856493A9493E9C5Fa2660F",
   },
   // Mainnet (update after deployment)
   1: {
     manifoldCore: "0x09CA1D7D0419d444AdFbb2c47FF0b2F29f29D3B2",
     extension: "0x0000000000000000000000000000000000000000",
+    renderer: "0x0000000000000000000000000000000000000000",
   },
+};
+
+// Etherscan base URLs per network
+export const ETHERSCAN_URLS: Record<number, string> = {
+  11155111: "https://sepolia.etherscan.io",
+  1: "https://etherscan.io",
 };
 
 // Token ID minted by the extension (from env or default to 2)

@@ -16,7 +16,7 @@ interface IHereForNowRenderer {
     /// @return The raw SVG string
     function generateSVG(
         uint256 activeParticipants
-    ) external pure returns (string memory);
+    ) external view returns (string memory);
 
     /// @notice Returns the artwork name
     function name() external view returns (string memory);

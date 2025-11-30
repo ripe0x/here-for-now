@@ -10,6 +10,7 @@ import {
   TOKEN_ID,
   MANIFOLD_ABI,
   EXTENSION_ABI,
+  ETHERSCAN_URLS,
 } from "@/lib/contracts";
 
 import { sepolia } from "wagmi/chains";
@@ -153,6 +154,36 @@ export default function Home() {
           <p className="text-white/50 text-sm text-center">
             Connect to Sepolia to enter or leave
           </p>
+        )}
+
+        {/* Contract Links */}
+        {contracts && ETHERSCAN_URLS[chainId] && (
+          <div className="mt-6 md:mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/40">
+            <a
+              href={`${ETHERSCAN_URLS[chainId]}/nft/${contracts.manifoldCore}/${TOKEN_ID}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white/70 transition-colors"
+            >
+              Token
+            </a>
+            <a
+              href={`${ETHERSCAN_URLS[chainId]}/address/${contracts.extension}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white/70 transition-colors"
+            >
+              Extension
+            </a>
+            <a
+              href={`${ETHERSCAN_URLS[chainId]}/address/${contracts.renderer}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white/70 transition-colors"
+            >
+              Renderer
+            </a>
+          </div>
         )}
       </div>
     </main>

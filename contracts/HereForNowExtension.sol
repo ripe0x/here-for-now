@@ -48,6 +48,12 @@ contract HereForNowExtension is
     event RendererUpdated(address indexed newRenderer);
     event Initialized(address indexed core, uint256 tokenId);
 
+    /// @dev EIP-4906 metadata update event
+    /// @notice Emitted when token metadata changes (enter/leave)
+    /// Note: This is emitted from the extension, not the token contract.
+    /// Marketplaces may not pick this up automatically.
+    event MetadataUpdate(uint256 _tokenId);
+
     /*//////////////////////////////////////////////////////////////
                                  STATE
     //////////////////////////////////////////////////////////////*/
@@ -108,6 +114,9 @@ contract HereForNowExtension is
                          MANIFOLD INTERFACE
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev EIP-4906 interface ID
+    bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
+
     /// @notice Check if the contract supports a given interface
     /// @param interfaceId The interface identifier
     /// @return True if the interface is supported
@@ -117,6 +126,7 @@ contract HereForNowExtension is
         return
             interfaceId == type(ICreatorExtensionTokenURI).interfaceId ||
             interfaceId == type(ISculpture).interfaceId ||
+            interfaceId == ERC4906_INTERFACE_ID ||
             AdminControl.supportsInterface(interfaceId) ||
             super.supportsInterface(interfaceId);
     }
@@ -162,6 +172,7 @@ contract HereForNowExtension is
         }
 
         emit Entered(msg.sender, msg.value, balanceOf[msg.sender]);
+        emit MetadataUpdate(tokenId);
     }
 
     /// @notice Leave the artwork and reclaim all ETH
@@ -180,6 +191,7 @@ contract HereForNowExtension is
         if (!success) revert TransferFailed();
 
         emit Left(msg.sender, balance);
+        emit MetadataUpdate(tokenId);
     }
 
     /*//////////////////////////////////////////////////////////////

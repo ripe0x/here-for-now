@@ -26,8 +26,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     // Line positioning (in viewBox coordinates)
     uint256 private constant LINE_X = 300; // x position
     uint256 private constant LINE_WIDTH = 400; // width (300 to 700)
-    uint256 private constant LINE_HEIGHT = 1; // height (1 viewBox unit = 4px output)
-    uint256 private constant SOLID_THRESHOLD = 599; // Lines needed for solid coverage (599 / 1)
+    uint256 private constant LINE_HEIGHT = 4; // height (4 viewBox units = 16px output)
     uint256 private constant LINE_Y_TOP = 200; // top line y
     uint256 private constant LINE_Y_BOTTOM = 799; // bottom line y
 
@@ -39,6 +38,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     string public description;
     string public author;
     string[] private _urls;
+    uint256 public solidThreshold; // Lines needed for solid coverage (default: 302 = 300 participants + 2)
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -54,6 +54,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         description = description_;
         author = author_;
         _urls = urls_;
+        solidThreshold = 420; // Default: 300 participants + 2 base lines
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -78,6 +79,12 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         return _urls;
     }
 
+    /// @notice Updates the solid threshold (lines needed for solid rectangle)
+    /// @param _threshold The new threshold value
+    function setSolidThreshold(uint256 _threshold) external onlyOwner {
+        solidThreshold = _threshold;
+    }
+
     /*//////////////////////////////////////////////////////////////
                             RENDER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -97,9 +104,9 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
                 description,
                 '","image":"data:image/svg+xml;base64,',
                 base64SVG,
-                '","attributes":[{"trait_type":"Present","value":',
+                '","attributes":[{"trait_type":"Present","value":"',
                 activeParticipants.toString(),
-                '}]}'
+                '"}]}'
             )
         );
 
@@ -116,7 +123,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     /// @dev Uses assembly for gas-efficient string building
     function generateSVG(
         uint256 activeParticipants
-    ) public pure override returns (string memory) {
+    ) public view override returns (string memory) {
         uint256 totalLines = 2 + activeParticipants;
 
         // Pre-calculate buffer size
@@ -134,11 +141,11 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         // Output: 4000x4000, ViewBox: 1000x1000 (4x scale)
         ptr = _writeString(
             ptr,
-            '<svg width="4000" height="4000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">'
+            '<svg width="4000" height="4000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">'
         );
         ptr = _writeString(
             ptr,
-            '<defs><rect id="l" width="400" height="1" fill="white"/></defs>'
+            '<defs><rect id="l" width="400" height="4" fill="white"/></defs>'
         );
         ptr = _writeString(
             ptr,
@@ -148,9 +155,12 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
         // Calculate and write lines
         uint256 verticalSpan = LINE_Y_BOTTOM - LINE_Y_TOP; // 599
 
-        if (totalLines >= SOLID_THRESHOLD) {
+        if (solidThreshold > 0 && totalLines >= solidThreshold) {
             // Draw a single white rectangle instead of individual lines
-            ptr = _writeString(ptr, '<rect x="300" y="200" width="400" height="600" fill="white"/>');
+            ptr = _writeString(
+                ptr,
+                '<rect x="300" y="200" width="400" height="600" fill="white"/>'
+            );
         } else if (totalLines == 2) {
             ptr = _writeString(ptr, '<use href="#l" x="300" y="200"/>');
             ptr = _writeString(ptr, '<use href="#l" x="300" y="799"/>');
@@ -252,5 +262,4 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
 
         return ptr;
     }
-
 }

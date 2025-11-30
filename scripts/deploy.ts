@@ -38,7 +38,7 @@ const MANIFOLD_ABI = [
 // Renderer metadata configuration
 const RENDERER_CONFIG = {
   name: "Here, For Now",
-  description: "This work treats the chain as a place where presence can be held, not just seen. Living directly on programmable money, it uses ETH itself as the material for showing up: a single contract where people leave part of their balance alongside others, with no yield and no reward. Being present here simply means letting some of your ETH remain for a while. Withdrawing it is always possible, but each decision to stay or to leave is reflected in the brightness of the image and in the brief overlap of everyone who chose to be here at the same time.",
+  description: "Here, For Now is a shared intimate space held by a single collector.\\n\\nAnyone can enter the space through a small onchain act of presence, adding themselves to the moment and shaping the image for as long as they choose to remain.\\n\\nThe work reflects the brief overlaps of the people who were here at the same time.",
   author: "ripe0x.eth",
   urls: ["https://hfn.ripe.wtf", "https://superrare.com/curation/exhibitions/intimate-systems"],
 };

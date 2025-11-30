@@ -122,6 +122,12 @@ describe("HereForNow", function () {
       expect(await extension.initialized()).to.be.true;
     });
 
+    it("should support EIP-4906 interface", async function () {
+      // EIP-4906 interface ID
+      const ERC4906_INTERFACE_ID = "0x49064906";
+      expect(await extension.supportsInterface(ERC4906_INTERFACE_ID)).to.be.true;
+    });
+
     it("should have minted a token on initialization", async function () {
       expect(tokenId).to.be.gt(0);
     });
@@ -192,6 +198,18 @@ describe("HereForNow", function () {
         })
       ).to.be.revertedWithCustomError(extension, "DirectTransferNotAllowed");
     });
+
+    it("should emit MetadataUpdate event (EIP-4906) on enter", async function () {
+      const signers = await ethers.getSigners();
+      const testAccount = signers[17];
+
+      await expect(extension.connect(testAccount).enter({ value: ethers.parseEther("0.1") }))
+        .to.emit(extension, "MetadataUpdate")
+        .withArgs(tokenId);
+
+      // Clean up
+      await extension.connect(testAccount).leave();
+    });
   });
 
   describe("Leaving", function () {
@@ -227,6 +245,17 @@ describe("HereForNow", function () {
       await expect(extension.connect(testAccount).leave())
         .to.emit(extension, "Left")
         .withArgs(testAccount.address, enterAmount);
+    });
+
+    it("should emit MetadataUpdate event (EIP-4906) on leave", async function () {
+      const signers = await ethers.getSigners();
+      const testAccount = signers[18];
+
+      await extension.connect(testAccount).enter({ value: ethers.parseEther("0.1") });
+
+      await expect(extension.connect(testAccount).leave())
+        .to.emit(extension, "MetadataUpdate")
+        .withArgs(tokenId);
     });
 
     it("should reject leave with no balance", async function () {
@@ -305,6 +334,50 @@ describe("HereForNow", function () {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
+    it("should have default solid threshold of 302", async function () {
+      expect(await renderer.solidThreshold()).to.equal(302);
+    });
+
+    it("should allow owner to update solid threshold", async function () {
+      const originalThreshold = await renderer.solidThreshold();
+
+      await renderer.setSolidThreshold(500);
+      expect(await renderer.solidThreshold()).to.equal(500);
+
+      // Restore original
+      await renderer.setSolidThreshold(originalThreshold);
+      expect(await renderer.solidThreshold()).to.equal(originalThreshold);
+    });
+
+    it("should not allow non-owner to update solid threshold", async function () {
+      await expect(
+        renderer.connect(alice).setSolidThreshold(999)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("should render solid rectangle when threshold is reached", async function () {
+      // Set a low threshold for testing
+      await renderer.setSolidThreshold(5);
+
+      // 3 participants = 5 lines total, should trigger solid
+      const svg = await renderer.generateSVG(3);
+      expect(svg).to.include('<rect x="300" y="200" width="400" height="600" fill="white"/>');
+      expect(svg).to.not.include('<use');
+
+      // Restore original threshold
+      await renderer.setSolidThreshold(302);
+    });
+
+    it("should render individual lines when below threshold", async function () {
+      // Ensure threshold is high enough
+      await renderer.setSolidThreshold(302);
+
+      // 3 participants = 5 lines, below threshold
+      const svg = await renderer.generateSVG(3);
+      expect(svg).to.include('<use');
+      expect(svg).to.not.include('width="400" height="600"');
+    });
+
     it("should generate SVG with correct number of lines", async function () {
       // 0 participants = 2 lines (top + bottom)
       let svg = await renderer.generateSVG(0);
@@ -357,12 +430,6 @@ describe("HereForNow", function () {
       );
       expect(presentAttr).to.exist;
       expect(presentAttr.value).to.be.gte(0);
-
-      const balanceAttr = json.attributes.find(
-        (a: { trait_type: string }) => a.trait_type === "Total ETH Held"
-      );
-      expect(balanceAttr).to.exist;
-      expect(balanceAttr.value).to.include("ETH");
     });
 
     it("should update token metadata when participants change", async function () {

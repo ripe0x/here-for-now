@@ -21,7 +21,7 @@ const MAINNET_MANIFOLD_CORE = process.env.MAINNET_MANIFOLD_CORE || "";
 // Renderer metadata configuration
 const RENDERER_CONFIG = {
   name: "Here, For Now",
-  description: "This work treats the chain as a place where presence can be held, not just seen.",
+  description: "Here, For Now is a shared intimate space held by a single collector.\\n\\nAnyone can enter the space through a small onchain act of presence, adding themselves to the moment and shaping the image for as long as they choose to remain.\\n\\nThe work reflects the brief overlaps of the people who were here at the same time.",
   author: "ripe0x.eth",
   urls: ["https://hfn.ripe.wtf"],
 };
@@ -297,9 +297,9 @@ function generateHTMLPreview(states: State[]): string {
   <h1>Here, For Now</h1>
   <p class="subtitle">State Visualization</p>
   <p class="description">
-    This work treats the chain as a place where presence can be held, not just seen.
-    Living directly on programmable money, it uses ETH itself as the material for showing up:
-    a single contract where people leave part of their balance alongside others, with no yield and no reward.
+    Here, For Now is a shared intimate space held by a single collector.<br><br>
+    Anyone can enter the space through a small onchain act of presence, adding themselves to the moment and shaping the image for as long as they choose to remain.<br><br>
+    The work reflects the brief overlaps of the people who were here at the same time.
   </p>
   <div class="grid">
     ${states
