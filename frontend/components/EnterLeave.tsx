@@ -22,7 +22,7 @@ export function EnterLeave({
   isConnected,
   onSuccess,
 }: EnterLeaveProps) {
-  const [amount, setAmount] = useState("0.01");
+  const [amount, setAmount] = useState("0.00069");
   const { chain } = useAccount();
 
   const {
@@ -87,10 +87,10 @@ export function EnterLeave({
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            step="0.01"
-            min="0.001"
+            step="0.00001"
+            min="0.00001"
             className="flex-1 bg-transparent border border-white/30 px-3 py-2.5 text-[12px] focus:border-white outline-none"
-            placeholder="0.01"
+            placeholder="0.00069"
           />
           <span className="text-white/50 text-[12px]">ETH</span>
         </div>

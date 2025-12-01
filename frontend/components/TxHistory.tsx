@@ -159,7 +159,7 @@ export function TxHistory() {
   }
 
   return (
-    <div className="space-y-2 max-h-48 overflow-y-auto">
+    <div className="space-y-2">
       {events.map((event, i) => (
         <a
           key={`${event.txHash}-${i}`}
