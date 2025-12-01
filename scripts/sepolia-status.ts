@@ -23,8 +23,8 @@ const EXTENSION_ABI = [
   "function tokenId() view returns (uint256)",
   "function renderer() view returns (address)",
   "function balanceOf(address) view returns (uint256)",
-  "function getActiveParticipants() view returns (uint256)",
-  "function getTotalBalance() view returns (uint256)",
+  "function activeParticipants() view returns (uint256)",
+  "function totalBalance() view returns (uint256)",
 ];
 
 // Manifold ABI
@@ -84,8 +84,8 @@ async function main() {
   const manifold = new ethers.Contract(deployment.manifoldCore, MANIFOLD_ABI, ethers.provider);
 
   // Get current state
-  const activeParticipants = await extension.getActiveParticipants();
-  const totalBalance = await extension.getTotalBalance();
+  const activeParticipants = await extension.activeParticipants();
+  const totalBalance = await extension.totalBalance();
   const tokenOwner = await manifold.ownerOf(deployment.tokenId);
 
   console.log("\n📊 CURRENT STATE");

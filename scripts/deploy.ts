@@ -1,4 +1,4 @@
-import { ethers, network } from "hardhat";
+import { ethers, network, run } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
@@ -82,6 +82,15 @@ function clearProgress() {
   }
 }
 
+// Format gas estimate for display
+async function formatGasEstimate(gasEstimate: bigint): Promise<string> {
+  const feeData = await ethers.provider.getFeeData();
+  const gasPrice = feeData.gasPrice || 0n;
+  const estimatedCost = gasEstimate * gasPrice;
+  const gasPriceGwei = Number(gasPrice) / 1e9;
+  return `   Gas estimate: ${gasEstimate.toLocaleString()} units @ ${gasPriceGwei.toFixed(2)} gwei = ${ethers.formatEther(estimatedCost)} ETH`;
+}
+
 // Interactive confirmation
 async function confirm(message: string): Promise<boolean> {
   // Auto-confirm for hardhat/localhost (local testing)
@@ -120,6 +129,76 @@ async function waitForTx(hash: string, label: string): Promise<any> {
   for (let i = 0; i < 60; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     receipt = await ethers.provider.getTransactionReceipt(hash);
+    if (receipt) {
+      console.log(`\n   ✓ Confirmed in block ${receipt.blockNumber}`);
+      return receipt;
+    }
+    process.stdout.write(".");
+  }
+  throw new Error(
+    `Timeout waiting for ${label}.\nTx: ${hash}\nCheck explorer and rerun script to resume.`
+  );
+}
+
+// Deploy contract using raw ethers to bypass hardhat-ethers bug with empty 'to' field
+// The bug is in hardhat-ethers' checkTx() which parses pending tx responses
+async function deployContract(
+  factory: any,
+  constructorArgs: any[],
+  deployer: any
+): Promise<{ txHash: string; contractAddress: string }> {
+  // Get the deployment transaction data
+  const deployTx = await factory.getDeployTransaction(...constructorArgs);
+
+  // Get current fee data
+  const feeData = await ethers.provider.getFeeData();
+  const nonce = await ethers.provider.getTransactionCount(deployer.address, "pending");
+
+  // Build the raw transaction
+  const rawTx = {
+    data: deployTx.data,
+    nonce,
+    gasLimit: await ethers.provider.estimateGas({ ...deployTx, from: deployer.address }),
+    maxFeePerGas: feeData.maxFeePerGas,
+    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    type: 2,
+    chainId: (await ethers.provider.getNetwork()).chainId,
+  };
+
+  // Sign and send using raw ethers (bypass hardhat-ethers wrapper)
+  const { ethers: rawEthers } = await import("ethers");
+  const privateKey = network.config.accounts && Array.isArray(network.config.accounts)
+    ? network.config.accounts[0] as string
+    : process.env.PRIVATE_KEY!;
+  const rpcUrl = (network.config as any).url;
+  const rawProvider = new rawEthers.JsonRpcProvider(rpcUrl);
+  const rawWallet = new rawEthers.Wallet(privateKey, rawProvider);
+
+  const signedTx = await rawWallet.signTransaction(rawTx);
+  const txResponse = await rawProvider.broadcastTransaction(signedTx);
+  const txHash = txResponse.hash;
+
+  console.log(`   Tx sent: ${txHash}`);
+
+  // Wait for receipt using raw provider (also bypasses the bug)
+  const receipt = await waitForTxRaw(rawProvider, txHash, "contract deployment");
+
+  if (!receipt.contractAddress) {
+    throw new Error("Contract deployment failed - no contract address in receipt");
+  }
+
+  return { txHash, contractAddress: receipt.contractAddress };
+}
+
+// Wait for transaction using raw ethers provider
+async function waitForTxRaw(provider: any, hash: string, label: string): Promise<any> {
+  console.log(`   https://${network.name === "mainnet" ? "" : network.name + "."}etherscan.io/tx/${hash}`);
+
+  // Poll for confirmation
+  process.stdout.write("   Waiting for confirmation");
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const receipt = await provider.getTransactionReceipt(hash);
     if (receipt) {
       console.log(`\n   ✓ Confirmed in block ${receipt.blockNumber}`);
       return receipt;
@@ -210,30 +289,28 @@ async function main() {
     console.log("STEP 1: Deploy HereForNowRenderer");
     console.log("────────────────────────────────────────────────────────────");
 
+    const Renderer = await ethers.getContractFactory("HereForNowRenderer");
+    const constructorArgs = [
+      RENDERER_CONFIG.name,
+      RENDERER_CONFIG.description,
+      RENDERER_CONFIG.author,
+      RENDERER_CONFIG.urls
+    ];
+    const deployTx = await Renderer.getDeployTransaction(...constructorArgs);
+    const gasEstimate = await ethers.provider.estimateGas(deployTx);
+    console.log(await formatGasEstimate(gasEstimate));
+
     if (!(await confirm("Deploy HereForNowRenderer?"))) {
       console.log("Aborted by user.");
       process.exit(0);
     }
 
-    const Renderer = await ethers.getContractFactory("HereForNowRenderer");
-    renderer = await Renderer.deploy(
-      RENDERER_CONFIG.name,
-      RENDERER_CONFIG.description,
-      RENDERER_CONFIG.author,
-      RENDERER_CONFIG.urls
-    );
-    progress.rendererTxHash = renderer.deploymentTransaction()?.hash;
-    progress.rendererAddress = await renderer.getAddress();
-    progress.step = 1;
+    const result = await deployContract(Renderer, constructorArgs, deployer);
+    progress.rendererTxHash = result.txHash;
+    progress.rendererAddress = result.contractAddress;
+    progress.step = 2; // Skip to step 2 since deployContract already waits for confirmation
     saveProgress(progress);
-    console.log(`   Tx sent: ${progress.rendererTxHash}`);
-  }
-
-  if (progress.step === 1) {
-    await waitForTx(progress.rendererTxHash!, "renderer deployment");
     console.log(`   Renderer: ${progress.rendererAddress}`);
-    progress.step = 2;
-    saveProgress(progress);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -244,25 +321,22 @@ async function main() {
     console.log("STEP 2: Deploy HereForNowExtension");
     console.log("────────────────────────────────────────────────────────────");
 
+    const Extension = await ethers.getContractFactory("HereForNowExtension");
+    const deployTx = await Extension.getDeployTransaction();
+    const gasEstimate = await ethers.provider.estimateGas(deployTx);
+    console.log(await formatGasEstimate(gasEstimate));
+
     if (!(await confirm("Deploy HereForNowExtension?"))) {
       console.log("Aborted. Rerun to resume.");
       process.exit(0);
     }
 
-    const Extension = await ethers.getContractFactory("HereForNowExtension");
-    extension = await Extension.deploy();
-    progress.extensionTxHash = extension.deploymentTransaction()?.hash;
-    progress.extensionAddress = await extension.getAddress();
-    progress.step = 3;
+    const result = await deployContract(Extension, [], deployer);
+    progress.extensionTxHash = result.txHash;
+    progress.extensionAddress = result.contractAddress;
+    progress.step = 4; // Skip to step 4 since deployContract already waits for confirmation
     saveProgress(progress);
-    console.log(`   Tx sent: ${progress.extensionTxHash}`);
-  }
-
-  if (progress.step === 3) {
-    await waitForTx(progress.extensionTxHash!, "extension deployment");
     console.log(`   Extension: ${progress.extensionAddress}`);
-    progress.step = 4;
-    saveProgress(progress);
   }
 
   // Reconnect to contracts if resuming
@@ -285,12 +359,14 @@ async function main() {
     console.log(`   Extension: ${progress.extensionAddress}`);
     console.log(`   Manifold:  ${manifoldCore}`);
 
+    const manifoldWithSigner = new ethers.Contract(manifoldCore, MANIFOLD_ABI, deployer);
+    const gasEstimate = await manifoldWithSigner.registerExtension.estimateGas(progress.extensionAddress!, "");
+    console.log(await formatGasEstimate(gasEstimate));
+
     if (!(await confirm("Register extension?"))) {
       console.log("Aborted. Rerun to resume.");
       process.exit(0);
     }
-
-    const manifoldWithSigner = new ethers.Contract(manifoldCore, MANIFOLD_ABI, deployer);
     const registerTx = await manifoldWithSigner.registerExtension(progress.extensionAddress!, "");
     progress.registerTxHash = registerTx.hash;
     progress.step = 5;
@@ -313,6 +389,9 @@ async function main() {
     console.log("────────────────────────────────────────────────────────────");
     console.log(`   Renderer:  ${progress.rendererAddress}`);
     console.log(`   Extension: ${progress.extensionAddress}`);
+
+    const gasEstimate = await extension.setRenderer.estimateGas(progress.rendererAddress!);
+    console.log(await formatGasEstimate(gasEstimate));
 
     if (!(await confirm("Set renderer?"))) {
       console.log("Aborted. Rerun to resume.");
@@ -340,6 +419,9 @@ async function main() {
     console.log("STEP 5: Initialize extension (mint token)");
     console.log("────────────────────────────────────────────────────────────");
     console.log(`   This will mint a new token on the Manifold contract.`);
+
+    const gasEstimate = await extension.initialize.estimateGas(manifoldCore);
+    console.log(await formatGasEstimate(gasEstimate));
 
     if (!(await confirm("Initialize and mint?"))) {
       console.log("Aborted. Rerun to resume.");
@@ -398,11 +480,52 @@ async function main() {
   console.log(`Token URI:     ${tokenUriPrefix}`);
   console.log(`\nSaved to:      ${getDeploymentFile()}`);
 
+  // Verify contracts on Etherscan (skip for local networks)
   if (networkName !== "hardhat" && networkName !== "localhost") {
-    console.log("\nVerify on Etherscan:");
-    const prefix = networkName === "mainnet" ? "" : `--network ${networkName} `;
-    console.log(`  npx hardhat verify ${prefix}${progress.rendererAddress}`);
-    console.log(`  npx hardhat verify ${prefix}${progress.extensionAddress}`);
+    console.log("\n7. Verifying contracts on Etherscan...");
+
+    // Wait a bit for Etherscan to index the contracts
+    console.log("   Waiting 30s for Etherscan to index...");
+    await new Promise(resolve => setTimeout(resolve, 30000));
+
+    // Verify Extension (no constructor args)
+    try {
+      console.log("   Verifying Extension...");
+      await run("verify:verify", {
+        address: progress.extensionAddress,
+        constructorArguments: [],
+      });
+      console.log("   ✓ Extension verified");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("Already Verified")) {
+        console.log("   ✓ Extension already verified");
+      } else {
+        console.log("   ⚠ Extension verification failed:", msg);
+      }
+    }
+
+    // Verify Renderer (with constructor args)
+    try {
+      console.log("   Verifying Renderer...");
+      await run("verify:verify", {
+        address: progress.rendererAddress,
+        constructorArguments: [
+          RENDERER_CONFIG.name,
+          RENDERER_CONFIG.description,
+          RENDERER_CONFIG.author,
+          RENDERER_CONFIG.urls,
+        ],
+      });
+      console.log("   ✓ Renderer verified");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("Already Verified")) {
+        console.log("   ✓ Renderer already verified");
+      } else {
+        console.log("   ⚠ Renderer verification failed:", msg);
+      }
+    }
   }
 }
 

@@ -99,8 +99,8 @@ async function main() {
 
   // Helper to generate a state
   async function captureState(name: string, filename: string) {
-    const svg = await extension.svg();
     const participants = await extension.activeParticipants();
+    const svg = await renderer.generateSVG(participants);
     const totalBalance = await extension.totalBalance();
     states.push({
       name,

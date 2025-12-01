@@ -10,55 +10,40 @@ import {
   TOKEN_ID,
   MANIFOLD_ABI,
   EXTENSION_ABI,
-  ETHERSCAN_URLS,
+  ETHERSCAN_URL,
 } from "@/lib/contracts";
 
-import { sepolia } from "wagmi/chains";
-
-// Default to Sepolia for viewing artwork without wallet
-const DEFAULT_CHAIN_ID = sepolia.id;
-
 export default function Home() {
-  const { address, isConnected, chain } = useAccount();
-  // Use connected chain if available, otherwise default to Sepolia
-  const chainId = chain?.id ?? DEFAULT_CHAIN_ID;
-  const contracts = CONTRACTS[chainId];
+  const { address, isConnected } = useAccount();
 
   // Fetch token URI from Manifold core
   const { data: tokenURI, error: tokenURIError, isLoading: tokenURILoading, refetch: refetchTokenURI } = useReadContract({
-    address: contracts?.manifoldCore,
+    address: CONTRACTS.manifoldCore,
     abi: MANIFOLD_ABI,
     functionName: "tokenURI",
     args: [TOKEN_ID],
-    chainId,
-    query: { enabled: !!contracts },
   });
 
   // Fetch user balance from extension
   const { data: userBalance, refetch: refetchUserBalance } = useReadContract({
-    address: contracts?.extension,
+    address: CONTRACTS.extension,
     abi: EXTENSION_ABI,
     functionName: "balanceOf",
     args: [address!],
-    chainId,
-    query: { enabled: !!contracts && !!address },
+    query: { enabled: !!address },
   });
 
   // Fetch stats
   const { data: activeParticipants, refetch: refetchParticipants } = useReadContract({
-    address: contracts?.extension,
+    address: CONTRACTS.extension,
     abi: EXTENSION_ABI,
-    functionName: "getActiveParticipants",
-    chainId,
-    query: { enabled: !!contracts },
+    functionName: "activeParticipants",
   });
 
   const { data: totalBalance, refetch: refetchTotalBalance } = useReadContract({
-    address: contracts?.extension,
+    address: CONTRACTS.extension,
     abi: EXTENSION_ABI,
-    functionName: "getTotalBalance",
-    chainId,
-    query: { enabled: !!contracts },
+    functionName: "totalBalance",
   });
 
   // Refetch all data after successful transaction
@@ -100,7 +85,6 @@ export default function Home() {
               >
                 ripe
               </a>
-              {" "}on {chain?.name || "Sepolia"}
             </p>
           </div>
           <ConnectButton.Custom>
@@ -147,53 +131,40 @@ export default function Home() {
         <div className="hidden lg:block flex-1" />
 
         {/* Actions */}
-        {contracts && contracts.extension !== "0x0000000000000000000000000000000000000000" ? (
-          <EnterLeave
-            extensionAddress={contracts.extension}
-            hasEntered={!!hasEntered}
-            isConnected={isConnected}
-            onSuccess={handleTransactionSuccess}
-          />
-        ) : isConnected && chain?.id === 1 ? (
-          <p className="text-white/50 text-sm text-center">
-            Not yet deployed on Mainnet.<br />
-            Switch to Sepolia to interact.
-          </p>
-        ) : (
-          <p className="text-white/50 text-sm text-center">
-            Connect to Sepolia to enter or leave
-          </p>
-        )}
+        <EnterLeave
+          extensionAddress={CONTRACTS.extension}
+          hasEntered={!!hasEntered}
+          isConnected={isConnected}
+          onSuccess={handleTransactionSuccess}
+        />
 
         {/* Contract Links */}
-        {contracts && ETHERSCAN_URLS[chainId] && (
-          <div className="mt-6 md:mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/40">
-            <a
-              href={`${ETHERSCAN_URLS[chainId]}/nft/${contracts.manifoldCore}/${TOKEN_ID}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-white/70 transition-colors"
-            >
-              Token
-            </a>
-            <a
-              href={`${ETHERSCAN_URLS[chainId]}/address/${contracts.extension}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-white/70 transition-colors"
-            >
-              Extension
-            </a>
-            <a
-              href={`${ETHERSCAN_URLS[chainId]}/address/${contracts.renderer}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-white/70 transition-colors"
-            >
-              Renderer
-            </a>
-          </div>
-        )}
+        <div className="mt-6 md:mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/40">
+          <a
+            href={`${ETHERSCAN_URL}/nft/${CONTRACTS.manifoldCore}/${TOKEN_ID}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white/70 transition-colors"
+          >
+            Token
+          </a>
+          <a
+            href={`${ETHERSCAN_URL}/address/${CONTRACTS.extension}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white/70 transition-colors"
+          >
+            Extension
+          </a>
+          <a
+            href={`${ETHERSCAN_URL}/address/${CONTRACTS.renderer}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white/70 transition-colors"
+          >
+            Renderer
+          </a>
+        </div>
       </div>
     </main>
   );

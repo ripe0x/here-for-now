@@ -10,11 +10,11 @@ import "./interfaces/IHereForNowRenderer.sol";
 import "./interfaces/ISculpture.sol";
 
 /// @title HereForNowExtension
-/// @notice A Manifold extension for the "Here, For Now" conceptual artwork
+/// @notice A Manifold extension for the "Here, For Now" token
 /// @author ripe
 /// @dev Allows addresses to enter by holding ETH to be "present" with the piece.
 ///      Each non-zero balance adds a line to the visual representation.
-///      ETH is never used - it simply represents presence until leaving.
+///      Deposited ETH remains in the contract until withdrawal.
 contract HereForNowExtension is
     AdminControl,
     ICreatorExtensionTokenURI,
@@ -30,6 +30,7 @@ contract HereForNowExtension is
     error AlreadyInitialized();
     error NotInitialized();
     error ZeroAmount();
+    error AlreadyEntered();
     error NoBalance();
     error TransferFailed();
     error DirectTransferNotAllowed();
@@ -144,10 +145,7 @@ contract HereForNowExtension is
         if (_tokenId != tokenId) revert InvalidTokenId();
         if (renderer == address(0)) revert RendererNotSet();
 
-        return
-            IHereForNowRenderer(renderer).tokenURI(
-                activeParticipants
-            );
+        return IHereForNowRenderer(renderer).tokenURI(activeParticipants);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -155,23 +153,16 @@ contract HereForNowExtension is
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Enter by holding ETH to become present with the artwork
-    /// @dev Increments the participant's balance and potentially adds a new line
+    /// @dev Each address can only enter once - presence is binary
     function enter() external payable nonReentrant {
         if (msg.value == 0) revert ZeroAmount();
+        if (balanceOf[msg.sender] > 0) revert AlreadyEntered();
 
-        // Track if this is a new participant (balance was zero)
-        bool wasZero = balanceOf[msg.sender] == 0;
-
-        // Update balances
-        balanceOf[msg.sender] += msg.value;
+        balanceOf[msg.sender] = msg.value;
         totalBalance += msg.value;
+        activeParticipants++;
 
-        // If this is a new participant, increment active count
-        if (wasZero) {
-            activeParticipants++;
-        }
-
-        emit Entered(msg.sender, msg.value, balanceOf[msg.sender]);
+        emit Entered(msg.sender, msg.value, msg.value);
         emit MetadataUpdate(tokenId);
     }
 
@@ -195,43 +186,6 @@ contract HereForNowExtension is
     }
 
     /*//////////////////////////////////////////////////////////////
-                            VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Get the balance of a specific address
-    /// @param account The address to query
-    /// @return The ETH balance held by this address
-    function getBalance(address account) external view returns (uint256) {
-        return balanceOf[account];
-    }
-
-    /// @notice Get the total ETH held in the contract
-    /// @return The total balance in wei
-    function getTotalBalance() external view returns (uint256) {
-        return totalBalance;
-    }
-
-    /// @notice Get the number of active participants
-    /// @return The count of addresses with non-zero balance
-    function getActiveParticipants() external view returns (uint256) {
-        return activeParticipants;
-    }
-
-    /// @notice Check if an address is currently present (has non-zero balance)
-    /// @param account The address to check
-    /// @return True if the address has a non-zero balance
-    function isPresent(address account) external view returns (bool) {
-        return balanceOf[account] > 0;
-    }
-
-    /// @notice Get the raw SVG for the current state
-    /// @return The SVG string
-    function svg() external view returns (string memory) {
-        if (renderer == address(0)) revert RendererNotSet();
-        return IHereForNowRenderer(renderer).generateSVG(activeParticipants);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                         SCULPTURE INTERFACE
     //////////////////////////////////////////////////////////////*/
 
@@ -251,9 +205,10 @@ contract HereForNowExtension is
 
     /// @notice Returns the addresses associated with the artwork
     function addresses() external view override returns (address[] memory) {
-        address[] memory a = new address[](2);
+        address[] memory a = new address[](3);
         a[0] = core; // Token contract (Manifold)
         a[1] = address(this); // Extension contract
+        a[2] = renderer; // Renderer contract
         return a;
     }
 

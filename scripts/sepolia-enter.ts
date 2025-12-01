@@ -23,8 +23,8 @@ const DEPLOYMENT_FILE = path.join(__dirname, "..", `deployment-${network.name}.j
 const EXTENSION_ABI = [
   "function enter() external payable",
   "function balanceOf(address) view returns (uint256)",
-  "function getActiveParticipants() view returns (uint256)",
-  "function getTotalBalance() view returns (uint256)",
+  "function activeParticipants() view returns (uint256)",
+  "function totalBalance() view returns (uint256)",
 ];
 
 interface TestAccount {
@@ -84,8 +84,8 @@ async function main() {
 
   // Get initial state
   const extension = new ethers.Contract(deployment.extension, EXTENSION_ABI, ethers.provider);
-  const initialParticipants = await extension.getActiveParticipants();
-  const initialBalance = await extension.getTotalBalance();
+  const initialParticipants = await extension.activeParticipants();
+  const initialBalance = await extension.totalBalance();
 
   console.log(`\nInitial state:`);
   console.log(`  Active participants: ${initialParticipants}`);
@@ -135,8 +135,8 @@ async function main() {
   }
 
   // Get final state
-  const finalParticipants = await extension.getActiveParticipants();
-  const finalBalance = await extension.getTotalBalance();
+  const finalParticipants = await extension.activeParticipants();
+  const finalBalance = await extension.totalBalance();
 
   console.log("\n" + "=".repeat(50));
   console.log("Enter Complete!");

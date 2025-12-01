@@ -52,6 +52,9 @@ async function main() {
     params: [ownerAddress],
   });
 
+  // Mine some blocks to let the base fee settle on the fork
+  await network.provider.send("hardhat_mine", ["0x10"]);
+
   // Fund the owner for gas
   await deployer.sendTransaction({
     to: ownerAddress,

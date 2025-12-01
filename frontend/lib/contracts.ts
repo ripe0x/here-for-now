@@ -1,29 +1,14 @@
 import { Address } from "viem";
 
-// Contract addresses per network
-export const CONTRACTS: Record<
-  number,
-  { manifoldCore: Address; extension: Address; renderer: Address }
-> = {
-  // Sepolia
-  11155111: {
-    manifoldCore: "0xA11D7EbB2404bb8CE247eaE15eF02312cC294cEc",
-    extension: "0x1940D20527A3407ef948828f23b7Cc6E5D927B82",
-    renderer: "0x7766662a22EC83cd47856493A9493E9C5Fa2660F",
-  },
-  // Mainnet (update after deployment)
-  1: {
-    manifoldCore: "0x09CA1D7D0419d444AdFbb2c47FF0b2F29f29D3B2",
-    extension: "0x0000000000000000000000000000000000000000",
-    renderer: "0x0000000000000000000000000000000000000000",
-  },
+// Mainnet contract addresses
+export const CONTRACTS = {
+  manifoldCore: "0x09CA1D7D0419d444AdFbb2c47FF0b2F29f29D3B2" as Address,
+  extension: "0x9c3622C8BF55A0350D9cf732211726dFCB67E1C2" as Address,
+  renderer: "0x3D980391A5eDA5fDbEE03c4F4A2B59CB6b0D0A18" as Address,
 };
 
-// Etherscan base URLs per network
-export const ETHERSCAN_URLS: Record<number, string> = {
-  11155111: "https://sepolia.etherscan.io",
-  1: "https://etherscan.io",
-};
+// Etherscan base URL
+export const ETHERSCAN_URL = "https://etherscan.io";
 
 // Token ID minted by the extension (from env or default to 2)
 export const TOKEN_ID = BigInt(process.env.NEXT_PUBLIC_TOKEN_ID || "2");
@@ -64,14 +49,14 @@ export const EXTENSION_ABI = [
   },
   {
     inputs: [],
-    name: "getActiveParticipants",
+    name: "activeParticipants",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "getTotalBalance",
+    name: "totalBalance",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",

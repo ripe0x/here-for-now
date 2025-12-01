@@ -160,15 +160,20 @@ describe("HereForNow", function () {
       expect(await extension.totalBalance()).to.be.gte(enterAmount);
     });
 
-    it("should track multiple entries from same address", async function () {
-      const initialBalance = await extension.balanceOf(alice.address);
-      const entry1 = ethers.parseEther("1");
-      const entry2 = ethers.parseEther("0.5");
+    it("should reject entering when already present", async function () {
+      const signers = await ethers.getSigners();
+      const testAccount = signers[19];
 
-      await extension.connect(alice).enter({ value: entry1 });
-      await extension.connect(alice).enter({ value: entry2 });
+      // First entry should succeed
+      await extension.connect(testAccount).enter({ value: ethers.parseEther("1") });
 
-      expect(await extension.balanceOf(alice.address)).to.equal(initialBalance + entry1 + entry2);
+      // Second entry should be rejected
+      await expect(
+        extension.connect(testAccount).enter({ value: ethers.parseEther("0.5") })
+      ).to.be.revertedWithCustomError(extension, "AlreadyEntered");
+
+      // Clean up
+      await extension.connect(testAccount).leave();
     });
 
     it("should track multiple participants correctly", async function () {
@@ -281,26 +286,22 @@ describe("HereForNow", function () {
   });
 
   describe("View Functions", function () {
-    it("should return correct balance for address", async function () {
-      expect(await extension.getBalance(alice.address)).to.equal(await extension.balanceOf(alice.address));
-    });
-
     it("should return correct total balance", async function () {
-      const totalBalance = await extension.getTotalBalance();
-      expect(totalBalance).to.be.gt(0);
+      const total = await extension.totalBalance();
+      expect(total).to.be.gt(0);
     });
 
     it("should return correct active participant count", async function () {
-      const count = await extension.getActiveParticipants();
+      const count = await extension.activeParticipants();
       expect(count).to.be.gt(0);
     });
 
-    it("should correctly report presence", async function () {
-      expect(await extension.isPresent(alice.address)).to.be.true;
+    it("should correctly report presence via balanceOf", async function () {
+      expect(await extension.balanceOf(alice.address)).to.be.gt(0);
 
       const signers = await ethers.getSigners();
       const neverEntered = signers[15];
-      expect(await extension.isPresent(neverEntered.address)).to.be.false;
+      expect(await extension.balanceOf(neverEntered.address)).to.equal(0);
     });
   });
 
@@ -334,19 +335,20 @@ describe("HereForNow", function () {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
-    it("should have default solid threshold of 302", async function () {
-      expect(await renderer.solidThreshold()).to.equal(302);
-    });
-
     it("should allow owner to update solid threshold", async function () {
-      const originalThreshold = await renderer.solidThreshold();
+      // Set threshold to 5, which means 3 participants (5 total lines) triggers solid
+      await renderer.setSolidThreshold(5);
+      let svg = await renderer.generateSVG(3);
+      expect(svg).to.include('<rect x="300" y="200" width="400" height="600" fill="white"/>');
 
-      await renderer.setSolidThreshold(500);
-      expect(await renderer.solidThreshold()).to.equal(500);
+      // Set threshold higher, same participants should now render lines
+      await renderer.setSolidThreshold(10);
+      svg = await renderer.generateSVG(3);
+      expect(svg).to.include('<use');
+      expect(svg).to.not.include('width="400" height="600"');
 
-      // Restore original
-      await renderer.setSolidThreshold(originalThreshold);
-      expect(await renderer.solidThreshold()).to.equal(originalThreshold);
+      // Restore to default
+      await renderer.setSolidThreshold(420);
     });
 
     it("should not allow non-owner to update solid threshold", async function () {
@@ -364,13 +366,13 @@ describe("HereForNow", function () {
       expect(svg).to.include('<rect x="300" y="200" width="400" height="600" fill="white"/>');
       expect(svg).to.not.include('<use');
 
-      // Restore original threshold
-      await renderer.setSolidThreshold(302);
+      // Restore default threshold
+      await renderer.setSolidThreshold(420);
     });
 
     it("should render individual lines when below threshold", async function () {
       // Ensure threshold is high enough
-      await renderer.setSolidThreshold(302);
+      await renderer.setSolidThreshold(420);
 
       // 3 participants = 5 lines, below threshold
       const svg = await renderer.generateSVG(3);
@@ -429,7 +431,7 @@ describe("HereForNow", function () {
         (a: { trait_type: string }) => a.trait_type === "Present"
       );
       expect(presentAttr).to.exist;
-      expect(presentAttr.value).to.be.gte(0);
+      expect(Number(presentAttr.value)).to.be.gte(0);
     });
 
     it("should update token metadata when participants change", async function () {
@@ -441,9 +443,9 @@ describe("HereForNow", function () {
       const jsonBefore = JSON.parse(
         Buffer.from(uriBefore.replace("data:application/json;base64,", ""), "base64").toString()
       );
-      const participantsBefore = jsonBefore.attributes.find(
+      const participantsBefore = Number(jsonBefore.attributes.find(
         (a: { trait_type: string }) => a.trait_type === "Present"
-      ).value;
+      ).value);
 
       // Enter
       await extension.connect(freshAccount).enter({ value: ethers.parseEther("0.1") });
@@ -453,9 +455,9 @@ describe("HereForNow", function () {
       const jsonAfter = JSON.parse(
         Buffer.from(uriAfter.replace("data:application/json;base64,", ""), "base64").toString()
       );
-      const participantsAfter = jsonAfter.attributes.find(
+      const participantsAfter = Number(jsonAfter.attributes.find(
         (a: { trait_type: string }) => a.trait_type === "Present"
-      ).value;
+      ).value);
 
       expect(participantsAfter).to.equal(participantsBefore + 1);
 
@@ -476,14 +478,14 @@ describe("HereForNow", function () {
     });
   });
 
-  describe("SVG via Extension", function () {
-    it("should return SVG through extension", async function () {
-      const svg = await extension.svg();
+  describe("SVG via Renderer", function () {
+    it("should return SVG through renderer with activeParticipants", async function () {
+      const participants = await extension.activeParticipants();
+      const svg = await renderer.generateSVG(participants);
       expect(svg).to.include("<svg");
       expect(svg).to.include("</svg>");
 
       // Should have at least 2 lines (top + bottom) plus participants
-      const participants = await extension.activeParticipants();
       const expectedLines = Number(participants) + 2;
       expect((svg.match(/<use/g) || []).length).to.equal(expectedLines);
     });
@@ -545,8 +547,8 @@ describe("HereForNow", function () {
       expect(await extension.activeParticipants()).to.equal(initialParticipants + BigInt(numParticipants));
 
       // Verify SVG updates correctly
-      const svg = await extension.svg();
       const currentParticipants = await extension.activeParticipants();
+      const svg = await renderer.generateSVG(currentParticipants);
       expect((svg.match(/<use/g) || []).length).to.equal(Number(currentParticipants) + 2);
 
       // Clean up

@@ -38,7 +38,7 @@ contract HereForNowRenderer is IHereForNowRenderer, Ownable {
     string public description;
     string public author;
     string[] private _urls;
-    uint256 public solidThreshold; // Lines needed for solid coverage (default: 302 = 300 participants + 2)
+    uint256 private solidThreshold; // Lines needed for solid coverage
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
