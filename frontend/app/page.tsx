@@ -141,7 +141,7 @@ export default function Home() {
         {/* Stats */}
         <div className="space-y-2 mb-5 md:mb-10">
           <div className="flex justify-between text-[12px]">
-            <span className="text-white/50">Currently Present</span>
+            <span className="text-white/50">Currently here</span>
             <span>{activeParticipants?.toString() || "0"}</span>
           </div>
           <div className="flex justify-between text-[12px]">
