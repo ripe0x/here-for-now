@@ -5,6 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
 import { Artwork } from "@/components/Artwork";
 import { EnterLeave } from "@/components/EnterLeave";
+import { TxHistory } from "@/components/TxHistory";
 import {
   CONTRACTS,
   TOKEN_ID,
@@ -18,7 +19,12 @@ export default function Home() {
   const { disconnect } = useDisconnect();
 
   // Fetch token URI from Manifold core
-  const { data: tokenURI, error: tokenURIError, isLoading: tokenURILoading, refetch: refetchTokenURI } = useReadContract({
+  const {
+    data: tokenURI,
+    error: tokenURIError,
+    isLoading: tokenURILoading,
+    refetch: refetchTokenURI,
+  } = useReadContract({
     address: CONTRACTS.manifoldCore,
     abi: MANIFOLD_ABI,
     functionName: "tokenURI",
@@ -35,11 +41,12 @@ export default function Home() {
   });
 
   // Fetch stats
-  const { data: activeParticipants, refetch: refetchParticipants } = useReadContract({
-    address: CONTRACTS.extension,
-    abi: EXTENSION_ABI,
-    functionName: "activeParticipants",
-  });
+  const { data: activeParticipants, refetch: refetchParticipants } =
+    useReadContract({
+      address: CONTRACTS.extension,
+      abi: EXTENSION_ABI,
+      functionName: "activeParticipants",
+    });
 
   const { data: totalBalance, refetch: refetchTotalBalance } = useReadContract({
     address: CONTRACTS.extension,
@@ -62,7 +69,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col lg:flex-row">
       {/* Artwork */}
-      <div className="w-full lg:w-2/3 flex items-center justify-center p-3 md:p-6 lg:border-r border-b lg:border-b-0 border-white/10">
+      <div className="w-full lg:w-2/3 flex items-center justify-center p-3 md:p-6 lg:border-r border-b lg:border-b-0 border-white/10 lg:sticky lg:top-0 lg:h-screen">
         <Artwork
           imageData={metadata?.image}
           isLoading={tokenURILoading}
@@ -71,22 +78,35 @@ export default function Home() {
       </div>
 
       {/* Details & Actions */}
-      <div className="w-full lg:w-1/3 flex flex-col p-3 md:p-6 pb-6 md:pb-6">
+      <div className="w-full lg:w-1/3 flex flex-col p-3 md:p-10 pb-6 md:pb-6">
         {/* Header */}
         <div className="flex justify-between items-start mb-5 md:mb-10">
           <div>
-            <h1 className="text-lg md:text-xl font-medium">{metadata?.name || "Loading..."}</h1>
-            <p className="text-white/50 text-xs mt-1">
+            <h1 className="text-lg md:text-xl font-medium">
+              {metadata?.name || "Loading..."}
+            </h1>
+            <p className="text-white/50 text-[12px] mt-1">
               by{" "}
               <a
                 href="https://ripe.wtf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:underline"
+                className="hover:underline text-neutral-100"
               >
                 ripe
+              </a>{" "}
+              on Ethereum
+            </p>
+            <p className="text-white/50 text-[12px] mt-1">
+              for SuperRare's{" "}
+              <a
+                href="https://superrare.com/curation/exhibitions/intimate-systems"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline text-neutral-100"
+              >
+                Intimate Systems
               </a>
-              {" "}on Ethereum
             </p>
           </div>
           <ConnectButton.Custom>
@@ -95,7 +115,7 @@ export default function Home() {
               return (
                 <button
                   onClick={connected ? () => disconnect() : openConnectModal}
-                  className="px-3 py-1.5 border border-white/30 hover:border-white text-xs transition-colors"
+                  className="px-3 py-1.5 border border-white/30 hover:border-white text-[12px] transition-colors"
                 >
                   {connected ? `${account.displayName}` : "Connect"}
                 </button>
@@ -104,27 +124,29 @@ export default function Home() {
           </ConnectButton.Custom>
         </div>
 
+        <hr className="border-white/10 mb-5 md:mb-5" />
+
         {/* Description */}
         {metadata?.description && (
-          <p className="text-white/70 text-xs leading-relaxed mb-5 md:mb-10 whitespace-pre-line">
+          <p className="text-white/70 text-xs leading-relaxed mb-5 md:mb-5 whitespace-pre-line">
             {metadata.description}
           </p>
         )}
 
         {/* Stats */}
-        <div className="space-y-3 mb-5 md:mb-10">
-          <div className="flex justify-between text-xs">
-            <span className="text-white/50">Present</span>
+        <div className="space-y-2 mb-5 md:mb-10">
+          <div className="flex justify-between text-[12px]">
+            <span className="text-white/50">Currently Present</span>
             <span>{activeParticipants?.toString() || "0"}</span>
           </div>
-          <div className="flex justify-between text-xs">
+          <div className="flex justify-between text-[12px]">
             <span className="text-white/50">Total ETH Held</span>
             <span>{totalBalance ? formatEther(totalBalance) : "0"} ETH</span>
           </div>
-          {isConnected && (
-            <div className="flex justify-between text-xs pt-3 border-t border-white/10">
+          {hasEntered && (
+            <div className="flex justify-between text-[12px] pt-3 border-t border-white/10">
               <span className="text-white/50">Your Balance</span>
-              <span>{userBalance ? formatEther(userBalance) : "0"} ETH</span>
+              <span>{formatEther(userBalance!)} ETH</span>
             </div>
           )}
         </div>
@@ -139,6 +161,12 @@ export default function Home() {
           isConnected={isConnected}
           onSuccess={handleTransactionSuccess}
         />
+
+        {/* Activity */}
+        <div className="mt-5 md:mt-6 pt-4 border-t border-white/10">
+          <h2 className="text-[12px] text-white/50 mb-3">Activity</h2>
+          <TxHistory />
+        </div>
 
         {/* Contract Links */}
         <div className="mt-5 md:mt-6 pt-4 border-t border-white/10 flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-white/40">
@@ -172,14 +200,17 @@ export default function Home() {
   );
 }
 
-function parseTokenURI(uri: string): { name?: string; description?: string; image?: string } | null {
+function parseTokenURI(
+  uri: string
+): { name?: string; description?: string; image?: string } | null {
   try {
     if (uri.startsWith("data:application/json;base64,")) {
       const base64 = uri.slice(29);
       // Handle both browser and edge runtime
-      const json = typeof window !== "undefined"
-        ? atob(base64)
-        : Buffer.from(base64, "base64").toString("utf-8");
+      const json =
+        typeof window !== "undefined"
+          ? atob(base64)
+          : Buffer.from(base64, "base64").toString("utf-8");
       return JSON.parse(json);
     }
     return null;

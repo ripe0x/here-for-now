@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import {
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useAccount,
+} from "wagmi";
 import { parseEther, Address } from "viem";
 import { EXTENSION_ABI } from "@/lib/contracts";
 
@@ -21,7 +25,13 @@ export function EnterLeave({
   const [amount, setAmount] = useState("0.01");
   const { chain } = useAccount();
 
-  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
+  const {
+    writeContract,
+    data: hash,
+    isPending,
+    error,
+    reset,
+  } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
@@ -60,7 +70,7 @@ export function EnterLeave({
 
   if (!isConnected) {
     return (
-      <p className="text-white/50 text-xs text-center">
+      <p className="text-white/50 text-[12px] text-center">
         Connect wallet to enter or leave
       </p>
     );
@@ -79,10 +89,10 @@ export function EnterLeave({
             onChange={(e) => setAmount(e.target.value)}
             step="0.01"
             min="0.001"
-            className="flex-1 bg-transparent border border-white/30 px-3 py-2.5 text-xs focus:border-white outline-none"
+            className="flex-1 bg-transparent border border-white/30 px-3 py-2.5 text-[12px] focus:border-white outline-none"
             placeholder="0.01"
           />
-          <span className="text-white/50 text-xs">ETH</span>
+          <span className="text-white/50 text-[12px]">ETH</span>
         </div>
       )}
 
@@ -91,10 +101,11 @@ export function EnterLeave({
         onClick={hasEntered ? handleLeave : handleEnter}
         disabled={isLoading}
         className={`
-          w-full py-3 text-xs font-medium transition-colors
-          ${isLoading
-            ? "bg-white/10 text-white/50 cursor-wait"
-            : hasEntered
+          w-full py-3 text-[12px] font-medium transition-colors
+          ${
+            isLoading
+              ? "bg-white/10 text-white/50 cursor-wait"
+              : hasEntered
               ? "bg-transparent border border-white hover:bg-white hover:text-black"
               : "bg-white text-black hover:bg-white/90"
           }
@@ -105,20 +116,19 @@ export function EnterLeave({
             ? "Confirming..."
             : "Pending..."
           : hasEntered
-            ? "Leave"
-            : "Enter"
-        }
+          ? "Leave"
+          : "Enter"}
       </button>
 
       {/* Status messages */}
       {isSuccess && (
-        <p className="text-green-400 text-xs text-center">
+        <p className="text-green-400 text-[12px] text-center">
           Transaction confirmed!
         </p>
       )}
       {/* Error message */}
       {error && (
-        <p className="text-red-400 text-xs text-center">
+        <p className="text-red-400 text-[12px] text-center">
           {error.message.includes("User rejected")
             ? "Transaction cancelled"
             : error.message.slice(0, 100)}
