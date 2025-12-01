@@ -85,6 +85,7 @@ export default function Home() {
               >
                 ripe
               </a>
+              {" "}on Ethereum
             </p>
           </div>
           <ConnectButton.Custom>
