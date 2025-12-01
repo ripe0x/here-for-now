@@ -38,7 +38,11 @@ const EXTENSION_EVENTS_ABI = [
   },
 ] as const;
 
-export function TxHistory() {
+interface TxHistoryProps {
+  refreshTrigger?: number;
+}
+
+export function TxHistory({ refreshTrigger }: TxHistoryProps) {
   const [events, setEvents] = useState<TxWithENS[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const publicClient = usePublicClient();
@@ -121,7 +125,7 @@ export function TxHistory() {
     }
 
     fetchEvents();
-  }, [publicClient]);
+  }, [publicClient, refreshTrigger]);
 
   const formatAddress = (address: Address) => {
     return `${address.slice(0, 6)}…${address.slice(-4)}`;

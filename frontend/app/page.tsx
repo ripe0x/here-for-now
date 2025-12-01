@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAccount, useReadContract, useDisconnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
@@ -18,6 +19,7 @@ import {
 export default function Home() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
+  const [txRefreshTrigger, setTxRefreshTrigger] = useState(0);
 
   // Fetch token URI from Manifold core
   const {
@@ -61,6 +63,7 @@ export default function Home() {
     refetchUserBalance();
     refetchParticipants();
     refetchTotalBalance();
+    setTxRefreshTrigger((prev) => prev + 1);
   };
 
   // Parse metadata from tokenURI
@@ -167,7 +170,7 @@ export default function Home() {
         {/* Activity */}
         <div className="mt-5 md:mt-6 pt-4 border-t border-white/10">
           <h2 className="text-[12px] text-white/50 mb-3">Activity</h2>
-          <TxHistory />
+          <TxHistory refreshTrigger={txRefreshTrigger} />
         </div>
 
         {/* Contract Links */}
