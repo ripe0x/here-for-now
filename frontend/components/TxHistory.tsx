@@ -70,6 +70,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
   const [events, setEvents] = useState<TxWithENS[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [counts, setCounts] = useState({ enters: 0, leaves: 0 });
+  const [filter, setFilter] = useState<"all" | "enter" | "leave">("all");
   const publicClient = usePublicClient();
 
   // Batch fetch block timestamps with retry logic
@@ -245,15 +246,33 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
     );
   }
 
+  const filteredEvents = filter === "all"
+    ? events
+    : events.filter((e) => e.type === filter);
+
   return (
     <div className="space-y-2">
-      {/* Counters */}
+      {/* Counters / Filters */}
       <div className="flex gap-4 text-[12px] mb-3">
-        <span className="text-green-400">{counts.enters} enters</span>
-        <span className="text-red-400">{counts.leaves} leaves</span>
+        <button
+          onClick={() => setFilter(filter === "enter" ? "all" : "enter")}
+          className={`transition-colors text-green-400 ${
+            filter === "leave" ? "opacity-50" : ""
+          }`}
+        >
+          {counts.enters} entered
+        </button>
+        <button
+          onClick={() => setFilter(filter === "leave" ? "all" : "leave")}
+          className={`transition-colors text-red-400 ${
+            filter === "enter" ? "opacity-50" : ""
+          }`}
+        >
+          {counts.leaves} left
+        </button>
       </div>
 
-      {events.map((event, i) => (
+      {filteredEvents.map((event, i) => (
         <a
           key={`${event.txHash}-${i}`}
           href={`${ETHERSCAN_URL}/tx/${event.txHash}`}
