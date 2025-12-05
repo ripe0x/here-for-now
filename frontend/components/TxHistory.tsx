@@ -69,7 +69,7 @@ interface TxHistoryProps {
 export function TxHistory({ refreshTrigger }: TxHistoryProps) {
   const [events, setEvents] = useState<TxWithENS[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [counts, setCounts] = useState({ enters: 0, leaves: 0 });
+  const [counts, setCounts] = useState({ here: 0, enters: 0, leaves: 0 });
   const [filter, setFilter] = useState<"all" | "enter" | "leave">("all");
   const publicClient = usePublicClient();
 
@@ -163,8 +163,12 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
           ),
         ]);
 
-        // Set counts
-        setCounts({ enters: enteredLogs.length, leaves: leftLogs.length });
+        // Set counts (here = enters - leaves)
+        setCounts({
+          here: enteredLogs.length - leftLogs.length,
+          enters: enteredLogs.length,
+          leaves: leftLogs.length,
+        });
 
         // Collect all block numbers for batch fetching
         const allBlockNumbers = [
@@ -254,6 +258,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
     <div className="space-y-2">
       {/* Counters / Filters */}
       <div className="flex gap-4 text-[12px] mb-3">
+        <span className="text-white">{counts.here} here</span>
         <button
           onClick={() => setFilter(filter === "enter" ? "all" : "enter")}
           className={`transition-colors text-green-400 ${
