@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { formatEther, Address } from "viem";
 import { usePublicClient } from "wagmi";
 import { CONTRACTS, ETHERSCAN_URL } from "@/lib/contracts";
@@ -39,8 +39,6 @@ const EXTENSION_EVENTS_ABI = [
 ] as const;
 
 const EARLIEST_BLOCK = 23915350n;
-const INITIAL_LOAD = 25;
-const LOAD_MORE_COUNT = 100;
 
 // ENS cache to avoid repeated lookups
 const ensCache = new Map<Address, string | null>();
@@ -50,14 +48,10 @@ interface TxHistoryProps {
 }
 
 export function TxHistory({ refreshTrigger }: TxHistoryProps) {
-  const [allEvents, setAllEvents] = useState<TxEvent[]>([]);
-  const [displayedEvents, setDisplayedEvents] = useState<TxWithENS[]>([]);
+  const [events, setEvents] = useState<TxWithENS[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [counts, setCounts] = useState({ enters: 0, leaves: 0 });
   const publicClient = usePublicClient();
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  const displayedCountRef = useRef(0);
 
   // Batch fetch block timestamps
   const fetchBlockTimestamps = useCallback(
@@ -117,27 +111,6 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
     [publicClient]
   );
 
-  // Load more events into display
-  const loadMoreEvents = useCallback(async () => {
-    if (isLoadingMore || !hasMore) return;
-
-    setIsLoadingMore(true);
-    const currentCount = displayedCountRef.current;
-    const nextBatch = allEvents.slice(currentCount, currentCount + LOAD_MORE_COUNT);
-
-    if (nextBatch.length === 0) {
-      setHasMore(false);
-      setIsLoadingMore(false);
-      return;
-    }
-
-    const eventsWithENS = await resolveENSNames(nextBatch);
-    setDisplayedEvents((prev) => [...prev, ...eventsWithENS]);
-    displayedCountRef.current = currentCount + nextBatch.length;
-    setHasMore(currentCount + nextBatch.length < allEvents.length);
-    setIsLoadingMore(false);
-  }, [allEvents, hasMore, isLoadingMore, resolveENSNames]);
-
   // Fetch all events from blockchain
   useEffect(() => {
     async function fetchEvents() {
@@ -162,6 +135,9 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
           }),
         ]);
 
+        // Set counts
+        setCounts({ enters: enteredLogs.length, leaves: leftLogs.length });
+
         // Collect all block numbers for batch fetching
         const allBlockNumbers = [
           ...enteredLogs.map((l) => l.blockNumber),
@@ -172,7 +148,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
         const timestamps = await fetchBlockTimestamps(allBlockNumbers);
 
         // Process events
-        const events: TxEvent[] = [
+        const allEvents: TxEvent[] = [
           ...enteredLogs.map((log) => ({
             type: "enter" as const,
             participant: log.args.participant!,
@@ -192,16 +168,11 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
         ];
 
         // Sort by timestamp descending (newest first)
-        events.sort((a, b) => b.timestamp - a.timestamp);
+        allEvents.sort((a, b) => b.timestamp - a.timestamp);
 
-        setAllEvents(events);
-
-        // Load initial batch with ENS
-        const initialBatch = events.slice(0, INITIAL_LOAD);
-        const eventsWithENS = await resolveENSNames(initialBatch);
-        setDisplayedEvents(eventsWithENS);
-        displayedCountRef.current = initialBatch.length;
-        setHasMore(events.length > INITIAL_LOAD);
+        // Resolve ENS names
+        const eventsWithENS = await resolveENSNames(allEvents);
+        setEvents(eventsWithENS);
       } catch (error) {
         console.error("Failed to fetch events:", error);
       } finally {
@@ -211,29 +182,6 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
 
     fetchEvents();
   }, [publicClient, refreshTrigger, fetchBlockTimestamps, resolveENSNames]);
-
-  // Intersection observer for lazy loading
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isLoading) {
-          loadMoreEvents();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    const currentRef = loadMoreRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, [hasMore, isLoadingMore, isLoading, loadMoreEvents]);
 
   const formatAddress = (address: Address) => {
     return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -262,7 +210,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
     );
   }
 
-  if (displayedEvents.length === 0) {
+  if (events.length === 0) {
     return (
       <div className="text-white/30 text-[12px] text-center py-4">
         No activity yet
@@ -272,7 +220,13 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
 
   return (
     <div className="space-y-2">
-      {displayedEvents.map((event, i) => (
+      {/* Counters */}
+      <div className="flex gap-4 text-[12px] mb-3">
+        <span className="text-green-400">{counts.enters} enters</span>
+        <span className="text-white/50">{counts.leaves} leaves</span>
+      </div>
+
+      {events.map((event, i) => (
         <a
           key={`${event.txHash}-${i}`}
           href={`${ETHERSCAN_URL}/tx/${event.txHash}`}
@@ -300,15 +254,6 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
           </div>
         </a>
       ))}
-
-      {/* Lazy load trigger */}
-      <div ref={loadMoreRef} className="py-2">
-        {isLoadingMore && (
-          <div className="text-white/30 text-[12px] text-center">
-            Loading more...
-          </div>
-        )}
-      </div>
     </div>
   );
 }
