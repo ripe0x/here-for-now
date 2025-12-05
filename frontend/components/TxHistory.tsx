@@ -39,9 +39,28 @@ const EXTENSION_EVENTS_ABI = [
 ] as const;
 
 const EARLIEST_BLOCK = 23915350n;
+const BLOCK_BATCH_SIZE = 5; // Reduced for RPC rate limits
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
 
 // ENS cache to avoid repeated lookups
 const ensCache = new Map<Address, string | null>();
+
+// Simple retry helper
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = MAX_RETRIES
+): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise((r) => setTimeout(r, RETRY_DELAY * (i + 1)));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
 
 interface TxHistoryProps {
   refreshTrigger?: number;
@@ -53,7 +72,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
   const [counts, setCounts] = useState({ enters: 0, leaves: 0 });
   const publicClient = usePublicClient();
 
-  // Batch fetch block timestamps
+  // Batch fetch block timestamps with retry logic
   const fetchBlockTimestamps = useCallback(
     async (blockNumbers: bigint[]): Promise<Map<bigint, number>> => {
       if (!publicClient) return new Map();
@@ -61,13 +80,14 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
       const uniqueBlocks = [...new Set(blockNumbers.map((b) => b.toString()))];
       const timestamps = new Map<bigint, number>();
 
-      // Fetch blocks in parallel batches of 10
-      const batchSize = 10;
-      for (let i = 0; i < uniqueBlocks.length; i += batchSize) {
-        const batch = uniqueBlocks.slice(i, i + batchSize);
+      // Fetch blocks in smaller parallel batches with retry
+      for (let i = 0; i < uniqueBlocks.length; i += BLOCK_BATCH_SIZE) {
+        const batch = uniqueBlocks.slice(i, i + BLOCK_BATCH_SIZE);
         const blocks = await Promise.all(
           batch.map((blockNum) =>
-            publicClient.getBlock({ blockNumber: BigInt(blockNum) })
+            withRetry(() =>
+              publicClient.getBlock({ blockNumber: BigInt(blockNum) })
+            )
           )
         );
         blocks.forEach((block, idx) => {
@@ -80,7 +100,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
     [publicClient]
   );
 
-  // Resolve ENS names with caching
+  // Resolve ENS names with caching (non-blocking, best effort)
   const resolveENSNames = useCallback(
     async (events: TxEvent[]): Promise<TxWithENS[]> => {
       if (!publicClient) return events;
@@ -89,18 +109,21 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
         ...new Set(events.map((e) => e.participant)),
       ].filter((addr) => !ensCache.has(addr));
 
-      // Fetch uncached ENS names in parallel
+      // Fetch uncached ENS names in small batches (non-blocking)
       if (uniqueAddresses.length > 0) {
-        await Promise.all(
-          uniqueAddresses.map(async (address) => {
-            try {
-              const ensName = await publicClient.getEnsName({ address });
-              ensCache.set(address, ensName);
-            } catch {
-              ensCache.set(address, null);
-            }
-          })
-        );
+        for (let i = 0; i < uniqueAddresses.length; i += BLOCK_BATCH_SIZE) {
+          const batch = uniqueAddresses.slice(i, i + BLOCK_BATCH_SIZE);
+          await Promise.all(
+            batch.map(async (address) => {
+              try {
+                const ensName = await publicClient.getEnsName({ address });
+                ensCache.set(address, ensName);
+              } catch {
+                ensCache.set(address, null);
+              }
+            })
+          );
+        }
       }
 
       return events.map((event) => ({
@@ -119,20 +142,24 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
       setIsLoading(true);
 
       try {
-        // Fetch Entered and Left events in parallel
+        // Fetch Entered and Left events in parallel with retry
         const [enteredLogs, leftLogs] = await Promise.all([
-          publicClient.getLogs({
-            address: CONTRACTS.extension,
-            event: EXTENSION_EVENTS_ABI[0],
-            fromBlock: EARLIEST_BLOCK,
-            toBlock: "latest",
-          }),
-          publicClient.getLogs({
-            address: CONTRACTS.extension,
-            event: EXTENSION_EVENTS_ABI[1],
-            fromBlock: EARLIEST_BLOCK,
-            toBlock: "latest",
-          }),
+          withRetry(() =>
+            publicClient.getLogs({
+              address: CONTRACTS.extension,
+              event: EXTENSION_EVENTS_ABI[0],
+              fromBlock: EARLIEST_BLOCK,
+              toBlock: "latest",
+            })
+          ),
+          withRetry(() =>
+            publicClient.getLogs({
+              address: CONTRACTS.extension,
+              event: EXTENSION_EVENTS_ABI[1],
+              fromBlock: EARLIEST_BLOCK,
+              toBlock: "latest",
+            })
+          ),
         ]);
 
         // Set counts
@@ -223,7 +250,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
       {/* Counters */}
       <div className="flex gap-4 text-[12px] mb-3">
         <span className="text-green-400">{counts.enters} enters</span>
-        <span className="text-white/50">{counts.leaves} leaves</span>
+        <span className="text-red-400">{counts.leaves} leaves</span>
       </div>
 
       {events.map((event, i) => (
@@ -242,7 +269,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
           <div className="flex items-center gap-3">
             <span
               className={
-                event.type === "enter" ? "text-green-400" : "text-white/50"
+                event.type === "enter" ? "text-green-400" : "text-red-400"
               }
             >
               {event.type === "enter" ? "+" : "−"}
