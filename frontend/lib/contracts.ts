@@ -62,3 +62,27 @@ export const EXTENSION_ABI = [
     type: "function",
   },
 ] as const;
+
+// Extension event ABIs for historical data fetching
+export const EXTENSION_EVENTS_ABI = [
+  {
+    type: "event",
+    name: "Entered",
+    inputs: [
+      { indexed: true, name: "participant", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+      { indexed: false, name: "newBalance", type: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    name: "Left",
+    inputs: [
+      { indexed: true, name: "participant", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+    ],
+  },
+] as const;
+
+// Block number when the extension was deployed
+export const EARLIEST_BLOCK = 23915350n;
