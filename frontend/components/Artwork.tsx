@@ -11,7 +11,7 @@ interface ArtworkProps {
   error?: string;
 }
 
-const PLAYBACK_SPEED = 100;
+const PLAYBACK_SPEED = 25;
 
 export function Artwork({ imageData, isLoading, error }: ArtworkProps) {
   const [mode, setMode] = useState<"live" | "playing">("live");
@@ -120,10 +120,10 @@ export function Artwork({ imageData, isLoading, error }: ArtworkProps) {
               onClick={() => recorder.startRecording(PLAYBACK_SPEED)}
               disabled={recorder.isRecording}
               className="text-white/20 hover:text-white/40 transition-colors disabled:opacity-30"
-              title="Download video"
+              title="Download MP4 for Twitter"
             >
               {recorder.isRecording ? (
-                <span className="text-[10px]">{recorder.progress}%</span>
+                <span className="text-[10px] whitespace-nowrap">{recorder.status}</span>
               ) : (
                 <DownloadIcon />
               )}
