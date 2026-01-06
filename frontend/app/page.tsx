@@ -43,7 +43,7 @@ export default function Home() {
   });
 
   // Fetch user balance from extension
-  const { data: userBalance, refetch: refetchUserBalance } = useReadContract({
+  const { data: userBalance, isLoading: userBalanceLoading, refetch: refetchUserBalance } = useReadContract({
     address: CONTRACTS.extension,
     abi: EXTENSION_ABI,
     functionName: "balanceOf",
@@ -139,24 +139,42 @@ export default function Home() {
 
         {/* Description */}
         {tokenURILoading ? (
-          <div className="space-y-2 mb-3">
-            <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
-            <div className="h-3 w-4/5 bg-white/[0.03] animate-pulse rounded" />
-            <div className="h-3 w-3/5 bg-white/[0.03] animate-pulse rounded" />
+          <div className="space-y-5 mb-3">
+            {/* Paragraph 1 */}
+            <div className="space-y-2">
+              <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
+              <div className="h-3 w-3/5 bg-white/[0.03] animate-pulse rounded" />
+            </div>
+            {/* Paragraph 2 */}
+            <div className="space-y-2">
+              <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
+              <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
+              <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
+              <div className="h-3 w-2/5 bg-white/[0.03] animate-pulse rounded" />
+            </div>
+            {/* Paragraph 3 */}
+            <div className="space-y-2">
+              <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
+              <div className="h-3 w-4/5 bg-white/[0.03] animate-pulse rounded" />
+            </div>
           </div>
         ) : metadata?.description ? (
           <p className="text-white/70 text-xs leading-relaxed mb-3 whitespace-pre-line">
             {metadata.description}
           </p>
         ) : null}
-        <a
-          href="https://x.com/ripe0x/status/1995532515403333762"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-white text-xs underline mb-5 md:mb-5 inline-block"
-        >
-          Read the explainer
-        </a>
+        {tokenURILoading ? (
+          <div className="h-4 w-28 bg-white/[0.03] animate-pulse rounded mb-5 md:mb-5" />
+        ) : (
+          <a
+            href="https://x.com/ripe0x/status/1995532515403333762"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white text-xs underline mb-5 md:mb-5 inline-block"
+          >
+            Read the explainer
+          </a>
+        )}
 
         {/* Stats */}
         <div className="space-y-2 mb-5 md:mb-10">
@@ -192,6 +210,7 @@ export default function Home() {
           extensionAddress={CONTRACTS.extension}
           hasEntered={!!hasEntered}
           isConnected={isConnected}
+          isBalanceLoading={isConnected && userBalanceLoading}
           onSuccess={handleTransactionSuccess}
         />
 

@@ -114,7 +114,16 @@ export function AuctionCountdown() {
   }
 
   if (!timeLeft) {
-    return null;
+    return (
+      <div className="mb-5 py-2 px-3 border border-white/10">
+        <div className="h-4 w-48 bg-white/[0.03] animate-pulse rounded mb-2" />
+        <hr className="border-white/10 my-2" />
+        <div className="flex justify-between items-center">
+          <div className="h-4 w-24 bg-white/[0.03] animate-pulse rounded" />
+          <div className="h-4 w-20 bg-white/[0.05] animate-pulse rounded" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -153,14 +162,16 @@ export function AuctionCountdown() {
           {formatNum(timeLeft.seconds)}
         </span>
       </div>
-      {currentBid && (
-        <div className="flex justify-between items-center text-[12px] mt-1">
-          <span className="text-white/50">Current bid</span>
+      <div className="flex justify-between items-center text-[12px] mt-1">
+        <span className="text-white/50">Current bid</span>
+        {currentBid === null ? (
+          <div className="h-4 w-16 bg-white/[0.05] animate-pulse rounded" />
+        ) : (
           <span className="text-neutral-100">
             {formatEther(currentBid)} ETH
           </span>
-        </div>
-      )}
+        )}
+      </div>
     </a>
   );
 }

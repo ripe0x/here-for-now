@@ -13,6 +13,7 @@ interface EnterLeaveProps {
   extensionAddress: Address;
   hasEntered: boolean;
   isConnected: boolean;
+  isBalanceLoading?: boolean;
   onSuccess?: () => void;
 }
 
@@ -20,6 +21,7 @@ export function EnterLeave({
   extensionAddress,
   hasEntered,
   isConnected,
+  isBalanceLoading,
   onSuccess,
 }: EnterLeaveProps) {
   const [amount, setAmount] = useState("0.00069");
@@ -73,6 +75,15 @@ export function EnterLeave({
       <p className="text-white/50 text-[12px] text-center">
         Connect wallet to enter or leave
       </p>
+    );
+  }
+
+  if (isBalanceLoading) {
+    return (
+      <div className="space-y-3">
+        <div className="h-10 bg-white/[0.03] animate-pulse rounded" />
+        <div className="h-12 bg-white/[0.05] animate-pulse rounded" />
+      </div>
     );
   }
 
