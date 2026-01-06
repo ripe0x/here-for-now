@@ -65,12 +65,9 @@ export function Artwork({ imageData, isLoading, error }: ArtworkProps) {
   // Loading state
   if (isLoading || !imageData) {
     return (
-      <div className="flex flex-col items-center">
-        <div className="w-full aspect-square max-w-xs md:max-w-md lg:max-w-xl flex items-center justify-center border border-white/10">
-          <span className="text-white/30 text-xs">
-            {isLoading ? "Loading artwork..." : "No artwork data"}
-          </span>
-        </div>
+      <div className="flex flex-col items-center w-full max-w-xs md:max-w-md lg:max-w-xl">
+        <div className="w-full aspect-square bg-white/[0.02] animate-pulse" />
+        <div className="h-6 mt-3" /> {/* Spacer for controls */}
       </div>
     );
   }

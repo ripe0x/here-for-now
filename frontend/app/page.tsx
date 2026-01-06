@@ -86,9 +86,13 @@ export default function Home() {
         {/* Header */}
         <div className="flex justify-between items-start mb-2 md:mb-2">
           <div>
-            <h1 className="text-lg md:text-xl font-medium">
-              {metadata?.name || "Loading..."}
-            </h1>
+            {tokenURILoading ? (
+              <div className="h-6 w-32 bg-white/[0.05] animate-pulse rounded" />
+            ) : (
+              <h1 className="text-lg md:text-xl font-medium">
+                {metadata?.name || "Untitled"}
+              </h1>
+            )}
             <p className="text-white/50 text-[12px] mt-1">
               by{" "}
               <a
@@ -124,11 +128,17 @@ export default function Home() {
         <hr className="border-white/10 mb-5 md:mb-5" />
 
         {/* Description */}
-        {metadata?.description && (
+        {tokenURILoading ? (
+          <div className="space-y-2 mb-3">
+            <div className="h-3 w-full bg-white/[0.03] animate-pulse rounded" />
+            <div className="h-3 w-4/5 bg-white/[0.03] animate-pulse rounded" />
+            <div className="h-3 w-3/5 bg-white/[0.03] animate-pulse rounded" />
+          </div>
+        ) : metadata?.description ? (
           <p className="text-white/70 text-xs leading-relaxed mb-3 whitespace-pre-line">
             {metadata.description}
           </p>
-        )}
+        ) : null}
         <a
           href="https://x.com/ripe0x/status/1995532515403333762"
           target="_blank"
@@ -142,11 +152,19 @@ export default function Home() {
         <div className="space-y-2 mb-5 md:mb-10">
           <div className="flex justify-between text-[12px]">
             <span className="text-white/50">Currently here</span>
-            <span>{activeParticipants?.toString() || "0"}</span>
+            {activeParticipants === undefined ? (
+              <div className="h-4 w-8 bg-white/[0.05] animate-pulse rounded" />
+            ) : (
+              <span>{activeParticipants.toString()}</span>
+            )}
           </div>
           <div className="flex justify-between text-[12px]">
             <span className="text-white/50">Total ETH Held</span>
-            <span>{totalBalance ? formatEther(totalBalance) : "0"} ETH</span>
+            {totalBalance === undefined ? (
+              <div className="h-4 w-16 bg-white/[0.05] animate-pulse rounded" />
+            ) : (
+              <span>{formatEther(totalBalance)} ETH</span>
+            )}
           </div>
           {hasEntered && (
             <div className="flex justify-between text-[12px] pt-3 border-t border-white/10">

@@ -236,8 +236,23 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
 
   if (isLoading) {
     return (
-      <div className="text-white/30 text-[12px] text-center py-4">
-        Loading history...
+      <div className="space-y-2">
+        {/* Skeleton counters */}
+        <div className="flex gap-4 mb-3">
+          <div className="h-4 w-14 bg-white/[0.05] animate-pulse rounded" />
+          <div className="h-4 w-20 bg-white/[0.05] animate-pulse rounded" />
+          <div className="h-4 w-14 bg-white/[0.05] animate-pulse rounded" />
+        </div>
+        {/* Skeleton rows */}
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="flex items-center justify-between py-1.5">
+            <div className="h-4 w-24 bg-white/[0.03] animate-pulse rounded" />
+            <div className="flex items-center gap-3">
+              <div className="h-4 w-16 bg-white/[0.03] animate-pulse rounded" />
+              <div className="h-3 w-10 bg-white/[0.03] animate-pulse rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
