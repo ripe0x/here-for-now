@@ -8,6 +8,7 @@ import { Artwork } from "@/components/Artwork";
 import { EnterLeave } from "@/components/EnterLeave";
 import { TxHistory } from "@/components/TxHistory";
 import { AuctionCountdown } from "@/components/AuctionCountdown";
+import { useHistoricalEvents } from "@/hooks/useHistoricalEvents";
 import {
   CONTRACTS,
   TOKEN_ID,
@@ -19,7 +20,14 @@ import {
 export default function Home() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  const [txRefreshTrigger, setTxRefreshTrigger] = useState(0);
+
+  // Shared historical events - fetched once, used by both Artwork and TxHistory
+  const {
+    events: historicalEvents,
+    states: historicalStates,
+    isLoading: historyLoading,
+    refetch: refetchHistory,
+  } = useHistoricalEvents();
 
   // Fetch token URI from Manifold core
   const {
@@ -63,7 +71,7 @@ export default function Home() {
     refetchUserBalance();
     refetchParticipants();
     refetchTotalBalance();
-    setTxRefreshTrigger((prev) => prev + 1);
+    refetchHistory();
   };
 
   // Parse metadata from tokenURI
@@ -78,6 +86,8 @@ export default function Home() {
           imageData={metadata?.image}
           isLoading={tokenURILoading}
           error={tokenURIError?.message}
+          states={historicalStates}
+          historyLoading={historyLoading}
         />
       </div>
 
@@ -188,7 +198,7 @@ export default function Home() {
         {/* Activity */}
         <div className="mt-5 md:mt-6 pt-4 border-t border-white/10">
           <h2 className="text-[12px] text-white/50 mb-3">Activity</h2>
-          <TxHistory refreshTrigger={txRefreshTrigger} />
+          <TxHistory events={historicalEvents} isLoading={historyLoading} />
         </div>
 
         {/* Contract Links */}

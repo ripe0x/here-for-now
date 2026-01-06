@@ -2,24 +2,22 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { AnimatedArtwork } from "./AnimatedArtwork";
-import { useHistoricalEvents } from "@/hooks/useHistoricalEvents";
 import { useVideoRecorder } from "@/hooks/useVideoRecorder";
+import type { HistoryState } from "@/hooks/useHistoricalEvents";
 
 interface ArtworkProps {
   imageData?: string;
   isLoading?: boolean;
   error?: string;
+  states: HistoryState[];
+  historyLoading: boolean;
 }
 
 const PLAYBACK_SPEED = 25;
 
-export function Artwork({ imageData, isLoading, error }: ArtworkProps) {
+export function Artwork({ imageData, isLoading, error, states, historyLoading }: ArtworkProps) {
   const [mode, setMode] = useState<"live" | "playing">("live");
   const [currentIndex, setCurrentIndex] = useState(0);
-  const {
-    states,
-    isLoading: historyLoading,
-  } = useHistoricalEvents();
   const recorder = useVideoRecorder(states);
 
   // Auto-advance animation

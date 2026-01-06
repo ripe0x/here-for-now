@@ -14,6 +14,7 @@ import {
 const BLOCK_BATCH_SIZE = 3;
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 500;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - skip fetch if cache is fresher
 
 // Reference point for timestamp estimation
 // Block 23915350 was mined around Dec 2024
@@ -172,22 +173,29 @@ export function useHistoricalEvents(): UseHistoricalEventsReturn {
   );
 
   // Main fetch function
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (forceRefresh = false) => {
     if (!publicClient) return;
+
+    // Check cache first
+    const cached = getCachedData();
+
+    // If we have cached data, use it immediately
+    if (cached && cached.events.length > 0) {
+      setEvents(cached.events);
+      setStates(calculateHistoricalStates(cached.events));
+
+      // If cache is fresh enough and not forcing refresh, skip network request
+      const cacheAge = Date.now() - cached.lastUpdated;
+      if (!forceRefresh && cacheAge < CACHE_TTL_MS) {
+        setIsLoading(false);
+        return;
+      }
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
-      // Check cache first
-      const cached = getCachedData();
-
-      // If we have cached data with events, use it immediately while fetching updates
-      if (cached && cached.events.length > 0) {
-        setEvents(cached.events);
-        setStates(calculateHistoricalStates(cached.events));
-      }
-
       const fromBlock = cached?.lastFetchedBlock
         ? deserializeBigInt(cached.lastFetchedBlock) + 1n
         : EARLIEST_BLOCK;
@@ -299,5 +307,8 @@ export function useHistoricalEvents(): UseHistoricalEventsReturn {
     fetchEvents();
   }, [fetchEvents]);
 
-  return { events, states, isLoading, error, refetch: fetchEvents };
+  // Force refresh function for manual refetch (e.g., after transaction)
+  const refetch = useCallback(() => fetchEvents(true), [fetchEvents]);
+
+  return { events, states, isLoading, error, refetch };
 }

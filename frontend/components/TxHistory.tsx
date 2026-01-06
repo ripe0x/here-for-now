@@ -1,119 +1,73 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { formatEther, Address } from "viem";
 import { usePublicClient } from "wagmi";
-import { CONTRACTS, ETHERSCAN_URL } from "@/lib/contracts";
+import { ETHERSCAN_URL } from "@/lib/contracts";
+import type { HistoricalEvent } from "@/lib/historyCache";
+import { deserializeBigInt } from "@/lib/historyCache";
 
-interface TxEvent {
+interface TxWithENS {
   type: "enter" | "leave";
   participant: Address;
   amount: bigint;
   timestamp: number;
   txHash: string;
-  blockNumber: bigint;
-}
-
-interface TxWithENS extends TxEvent {
   ensName?: string;
 }
 
-const EXTENSION_EVENTS_ABI = [
-  {
-    type: "event",
-    name: "Entered",
-    inputs: [
-      { indexed: true, name: "participant", type: "address" },
-      { indexed: false, name: "amount", type: "uint256" },
-      { indexed: false, name: "newBalance", type: "uint256" },
-    ],
-  },
-  {
-    type: "event",
-    name: "Left",
-    inputs: [
-      { indexed: true, name: "participant", type: "address" },
-      { indexed: false, name: "amount", type: "uint256" },
-    ],
-  },
-] as const;
-
-const EARLIEST_BLOCK = 23915350n;
-const BLOCK_BATCH_SIZE = 5; // Reduced for RPC rate limits
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
+const ENS_BATCH_SIZE = 5;
 
 // ENS cache to avoid repeated lookups
 const ensCache = new Map<Address, string | null>();
 
-// Simple retry helper
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  retries = MAX_RETRIES
-): Promise<T> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === retries - 1) throw error;
-      await new Promise((r) => setTimeout(r, RETRY_DELAY * (i + 1)));
-    }
-  }
-  throw new Error("Max retries exceeded");
-}
-
 interface TxHistoryProps {
-  refreshTrigger?: number;
+  events: HistoricalEvent[];
+  isLoading: boolean;
 }
 
-export function TxHistory({ refreshTrigger }: TxHistoryProps) {
-  const [events, setEvents] = useState<TxWithENS[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [counts, setCounts] = useState({ here: 0, enters: 0, leaves: 0 });
+export function TxHistory({ events: rawEvents, isLoading }: TxHistoryProps) {
+  const [eventsWithENS, setEventsWithENS] = useState<TxWithENS[]>([]);
+  const [ensResolved, setEnsResolved] = useState(false);
   const [filter, setFilter] = useState<"all" | "enter" | "leave">("all");
   const publicClient = usePublicClient();
 
-  // Batch fetch block timestamps with retry logic
-  const fetchBlockTimestamps = useCallback(
-    async (blockNumbers: bigint[]): Promise<Map<bigint, number>> => {
-      if (!publicClient) return new Map();
+  // Calculate counts from events
+  const counts = useMemo(() => {
+    const enters = rawEvents.filter((e) => e.type === "enter").length;
+    const leaves = rawEvents.filter((e) => e.type === "leave").length;
+    return { here: enters - leaves, enters, leaves };
+  }, [rawEvents]);
 
-      const uniqueBlocks = [...new Set(blockNumbers.map((b) => b.toString()))];
-      const timestamps = new Map<bigint, number>();
+  // Convert and sort events
+  const sortedEvents = useMemo(() => {
+    return [...rawEvents]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map((e) => ({
+        type: e.type,
+        participant: e.participant,
+        amount: deserializeBigInt(e.amount),
+        timestamp: e.timestamp,
+        txHash: e.txHash,
+        ensName: ensCache.get(e.participant) || undefined,
+      }));
+  }, [rawEvents]);
 
-      // Fetch blocks in smaller parallel batches with retry
-      for (let i = 0; i < uniqueBlocks.length; i += BLOCK_BATCH_SIZE) {
-        const batch = uniqueBlocks.slice(i, i + BLOCK_BATCH_SIZE);
-        const blocks = await Promise.all(
-          batch.map((blockNum) =>
-            withRetry(() =>
-              publicClient.getBlock({ blockNumber: BigInt(blockNum) })
-            )
-          )
-        );
-        blocks.forEach((block, idx) => {
-          timestamps.set(BigInt(batch[idx]), Number(block.timestamp));
-        });
-      }
+  // Resolve ENS names (non-blocking, best effort)
+  useEffect(() => {
+    if (!publicClient || rawEvents.length === 0) {
+      setEventsWithENS(sortedEvents);
+      return;
+    }
 
-      return timestamps;
-    },
-    [publicClient]
-  );
-
-  // Resolve ENS names with caching (non-blocking, best effort)
-  const resolveENSNames = useCallback(
-    async (events: TxEvent[]): Promise<TxWithENS[]> => {
-      if (!publicClient) return events;
-
+    async function resolveENS() {
       const uniqueAddresses = [
-        ...new Set(events.map((e) => e.participant)),
+        ...new Set(rawEvents.map((e) => e.participant)),
       ].filter((addr) => !ensCache.has(addr));
 
-      // Fetch uncached ENS names in small batches (non-blocking)
       if (uniqueAddresses.length > 0) {
-        for (let i = 0; i < uniqueAddresses.length; i += BLOCK_BATCH_SIZE) {
-          const batch = uniqueAddresses.slice(i, i + BLOCK_BATCH_SIZE);
+        for (let i = 0; i < uniqueAddresses.length; i += ENS_BATCH_SIZE) {
+          const batch = uniqueAddresses.slice(i, i + ENS_BATCH_SIZE);
           await Promise.all(
             batch.map(async (address) => {
               try {
@@ -127,93 +81,22 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
         }
       }
 
-      return events.map((event) => ({
-        ...event,
-        ensName: ensCache.get(event.participant) || undefined,
-      }));
-    },
-    [publicClient]
-  );
-
-  // Fetch all events from blockchain
-  useEffect(() => {
-    async function fetchEvents() {
-      if (!publicClient) return;
-
-      setIsLoading(true);
-
-      try {
-        // Fetch Entered and Left events in parallel with retry
-        const [enteredLogs, leftLogs] = await Promise.all([
-          withRetry(() =>
-            publicClient.getLogs({
-              address: CONTRACTS.extension,
-              event: EXTENSION_EVENTS_ABI[0],
-              fromBlock: EARLIEST_BLOCK,
-              toBlock: "latest",
-            })
-          ),
-          withRetry(() =>
-            publicClient.getLogs({
-              address: CONTRACTS.extension,
-              event: EXTENSION_EVENTS_ABI[1],
-              fromBlock: EARLIEST_BLOCK,
-              toBlock: "latest",
-            })
-          ),
-        ]);
-
-        // Set counts (here = enters - leaves)
-        setCounts({
-          here: enteredLogs.length - leftLogs.length,
-          enters: enteredLogs.length,
-          leaves: leftLogs.length,
-        });
-
-        // Collect all block numbers for batch fetching
-        const allBlockNumbers = [
-          ...enteredLogs.map((l) => l.blockNumber),
-          ...leftLogs.map((l) => l.blockNumber),
-        ];
-
-        // Batch fetch all block timestamps
-        const timestamps = await fetchBlockTimestamps(allBlockNumbers);
-
-        // Process events
-        const allEvents: TxEvent[] = [
-          ...enteredLogs.map((log) => ({
-            type: "enter" as const,
-            participant: log.args.participant!,
-            amount: log.args.amount!,
-            timestamp: timestamps.get(log.blockNumber) || 0,
-            txHash: log.transactionHash!,
-            blockNumber: log.blockNumber,
-          })),
-          ...leftLogs.map((log) => ({
-            type: "leave" as const,
-            participant: log.args.participant!,
-            amount: log.args.amount!,
-            timestamp: timestamps.get(log.blockNumber) || 0,
-            txHash: log.transactionHash!,
-            blockNumber: log.blockNumber,
-          })),
-        ];
-
-        // Sort by timestamp descending (newest first)
-        allEvents.sort((a, b) => b.timestamp - a.timestamp);
-
-        // Resolve ENS names
-        const eventsWithENS = await resolveENSNames(allEvents);
-        setEvents(eventsWithENS);
-      } catch (error) {
-        console.error("Failed to fetch events:", error);
-      } finally {
-        setIsLoading(false);
-      }
+      // Update events with resolved ENS names
+      setEventsWithENS(
+        sortedEvents.map((event) => ({
+          ...event,
+          ensName: ensCache.get(event.participant) || undefined,
+        }))
+      );
+      setEnsResolved(true);
     }
 
-    fetchEvents();
-  }, [publicClient, refreshTrigger, fetchBlockTimestamps, resolveENSNames]);
+    // Show events immediately, then resolve ENS in background
+    setEventsWithENS(sortedEvents);
+    resolveENS();
+  }, [publicClient, rawEvents, sortedEvents]);
+
+  const displayEvents = ensResolved ? eventsWithENS : sortedEvents;
 
   const formatAddress = (address: Address) => {
     return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -257,7 +140,7 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
     );
   }
 
-  if (events.length === 0) {
+  if (rawEvents.length === 0 && !isLoading) {
     return (
       <div className="text-white/30 text-[12px] text-center py-4">
         No activity yet
@@ -266,8 +149,8 @@ export function TxHistory({ refreshTrigger }: TxHistoryProps) {
   }
 
   const filteredEvents = filter === "all"
-    ? events
-    : events.filter((e) => e.type === filter);
+    ? displayEvents
+    : displayEvents.filter((e) => e.type === filter);
 
   return (
     <div className="space-y-2">
