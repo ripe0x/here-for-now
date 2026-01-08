@@ -61,6 +61,8 @@ export function TxHistory({ events: rawEvents, isLoading }: TxHistoryProps) {
     }
 
     async function resolveENS() {
+      if (!publicClient) return;
+
       const uniqueAddresses = [
         ...new Set(rawEvents.map((e) => e.participant)),
       ].filter((addr) => !ensCache.has(addr));
